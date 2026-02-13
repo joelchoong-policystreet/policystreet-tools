@@ -11,10 +11,14 @@ export function Sidebar() {
     <div className="fixed left-0 top-0 h-screen w-64 border-r border-border bg-sidebar text-sidebar-foreground flex flex-col">
       {/* Branding */}
       <div className="border-b border-sidebar-border p-6">
-        <h2 className="text-xl font-bold tracking-tight">
-          <span className="text-sidebar-foreground">PolicyStreet</span>
-          <span className="block text-sm font-normal text-sidebar-foreground/70">Tools</span>
-        </h2>
+        <div className="flex items-center gap-2">
+          <span className="text-xl font-bold italic text-sidebar-foreground">
+            PolicyStreet
+          </span>
+          <span className="rounded-md bg-gradient-to-r from-blue-400 to-blue-600 px-2.5 py-0.5 text-xs font-bold text-white">
+            Tools
+          </span>
+        </div>
       </div>
 
       {/* Navigation */}
