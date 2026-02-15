@@ -18,7 +18,7 @@ const App = () => (
       <BrowserRouter>
         <div className="flex">
           <Sidebar />
-          <div className="ml-64 w-[calc(100%-16rem)]">
+          <div className="ml-[110px] w-[calc(100%-110px)]">
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/report" element={<Report />} />
