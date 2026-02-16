@@ -5,7 +5,6 @@ import {
   Database,
   Users,
   ClipboardList,
-  Bike,
   UserCircle,
   Workflow,
   ChevronDown,
@@ -73,6 +72,8 @@ function Section({ label, icon: Icon, defaultOpen = false, children }: SectionPr
 export function Sidebar() {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
+  const isWorkflowActive = (workflowId: string) =>
+    location.pathname.startsWith(`/workflows/${workflowId}`);
 
   return (
     <div className="fixed left-0 top-0 h-screen w-[110px] border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col items-center z-50">
@@ -103,10 +104,9 @@ export function Sidebar() {
 
         <div className="mx-2 my-1 border-t border-sidebar-border" />
 
-        {/* Department Workflows */}
+        {/* Workflows - Affiliates opens project panel with projects (e.g. iMotorbike) */}
         <Section label="Workflows" icon={Workflow}>
-          <NavItem to="/workflows/affiliates" icon={Workflow} label="Affiliates" isActive={isActive("/workflows/affiliates")} />
-          <NavItem to="/workflows/imotorbike" icon={Bike} label="iMotorbike" isActive={isActive("/workflows/imotorbike")} indent />
+          <NavItem to="/workflows/affiliates" icon={Workflow} label="Affiliates" isActive={isWorkflowActive("affiliates")} />
         </Section>
 
         <div className="mx-2 my-1 border-t border-sidebar-border" />
