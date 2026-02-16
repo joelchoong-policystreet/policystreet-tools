@@ -8,7 +8,7 @@ import {
   parseISO,
   parse,
   isValid,
-  type DateInterval,
+  type Interval,
 } from "date-fns";
 import { Upload, Filter, Check, Clock, ClipboardList, ArrowUp, ArrowDown } from "lucide-react";
 import { WORKFLOWS } from "@/components/ProjectPanel";
@@ -98,7 +98,7 @@ function filterByDateRange(
     });
   }
   const now = new Date();
-  let interval: DateInterval;
+  let interval: Interval;
   if (preset === "last_month") {
     const start = startOfMonth(subMonths(now, 1));
     const end = endOfMonth(subMonths(now, 1));
