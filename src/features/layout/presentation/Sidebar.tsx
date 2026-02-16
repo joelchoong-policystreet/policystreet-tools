@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   FileText,
   Database,
+  Receipt,
+  BadgeCheck,
   Users,
   ClipboardList,
   UserCircle,
@@ -81,8 +83,11 @@ function Section({ label, icon: Icon, defaultOpen = false, children }: SectionPr
 
 export function Sidebar() {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { signOut } = useAuth();
   const isActive = (path: string) => location.pathname === path;
+  const isDatabaseQuotation = () => location.pathname === "/database" && searchParams.get("view") === "quotation";
+  const isDatabaseIssuance = () => location.pathname === "/database" && (searchParams.get("view") === "issuance" || !searchParams.get("view"));
   const isWorkflowActive = (workflowId: string) =>
     location.pathname.startsWith(`/workflows/${workflowId}`);
 
@@ -104,8 +109,9 @@ export function Sidebar() {
 
         <div className="mx-2 my-1 border-t border-sidebar-border" />
 
-        <Section label="Database" icon={Database}>
-          <p className="text-[10px] text-sidebar-foreground/30 text-center py-2">Coming soon</p>
+        <Section label="Database" icon={Database} defaultOpen>
+          <NavItem to="/database?view=quotation" icon={Receipt} label="Quotation" isActive={isDatabaseQuotation()} />
+          <NavItem to="/database?view=issuance" icon={BadgeCheck} label="Issuance" isActive={isDatabaseIssuance()} />
         </Section>
 
         <div className="mx-2 my-1 border-t border-sidebar-border" />

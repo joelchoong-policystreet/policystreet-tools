@@ -14,6 +14,7 @@ import ProjectIMotorbikePage from "@/features/workflows/imotorbike/presentation/
 import AdminUsersPage from "@/features/admin/users/presentation/AdminUsersPage";
 import AdminRolesPage from "@/features/admin/roles/presentation/AdminRolesPage";
 import AdminAuditLogsPage from "@/features/admin/audit-logs/presentation/AdminAuditLogsPage";
+import DatabasePage from "@/features/database/presentation/DatabasePage";
 import ProfilePage from "@/features/profile/presentation/ProfilePage";
 import NotFoundPage from "@/features/not-found/presentation/NotFoundPage";
 
@@ -46,6 +47,7 @@ function AppLayout() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/report" element={<ReportPage />} />
+            <Route path="/database" element={<DatabasePage />} />
             <Route path="/workflows/imotorbike" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
             <Route path="/workflows/imotorbike/:projectId" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
             <Route path="/workflows/:workflowId" element={<WorkflowDefaultPage />} />
