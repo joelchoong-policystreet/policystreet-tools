@@ -8,8 +8,17 @@ import {
   UserCircle,
   Workflow,
   ChevronDown,
+  Settings,
+  LogOut,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface NavItemProps {
   to: string;
@@ -114,24 +123,46 @@ export function Sidebar() {
         {/* Admin */}
         <Section label="Admin" icon={Users}>
           <NavItem to="/admin/users" icon={Users} label="Users" isActive={isActive("/admin/users")} />
+          <NavItem to="/admin/roles" icon={Shield} label="Roles" isActive={isActive("/admin/roles")} />
           <NavItem to="/admin/audit-logs" icon={ClipboardList} label="Audit Logs" isActive={isActive("/admin/audit-logs")} />
         </Section>
       </nav>
 
-      {/* Profile */}
+      {/* Profile - menu with Settings & Logout */}
       <div className="border-t border-sidebar-border w-full p-2">
-        <Link
-          to="/profile"
-          className={cn(
-            "flex flex-col items-center gap-1 rounded-lg px-2 py-3 text-xs font-medium transition-colors",
-            isActive("/profile")
-              ? "bg-sidebar-ring/80 text-white"
-              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/20 hover:text-sidebar-foreground"
-          )}
-        >
-          <UserCircle className="h-5 w-5" />
-          <span>Profile</span>
-        </Link>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "flex w-full flex-col items-center gap-1 rounded-lg px-2 py-3 text-xs font-medium transition-colors",
+                isActive("/profile")
+                  ? "bg-sidebar-ring/80 text-white"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/20 hover:text-sidebar-foreground"
+              )}
+            >
+              <UserCircle className="h-5 w-5" />
+              <span>Profile</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="center" className="min-w-[140px]">
+            <DropdownMenuItem asChild>
+              <Link to="/profile" className="flex items-center gap-2 cursor-pointer">
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-muted-foreground focus:text-destructive"
+              onSelect={() => {
+                // TODO: wire to auth logout
+              }}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

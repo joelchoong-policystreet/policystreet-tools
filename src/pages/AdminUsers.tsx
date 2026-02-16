@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 type UserRole = "admin" | "user";
 type UserStatus = "active" | "deactivated";
@@ -137,8 +138,7 @@ export default function AdminUsers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead className="w-[120px]">Status</TableHead>
-                  <TableHead className="w-[120px] text-right">Actions</TableHead>
+                  <TableHead className="w-[140px]">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -157,26 +157,15 @@ export default function AdminUsers() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={user.status === "active" ? "default" : "secondary"}
-                        className={user.status === "deactivated" ? "bg-muted text-muted-foreground" : ""}
-                      >
-                        {user.status === "active" ? "Active" : "Deactivated"}
-                      </Badge>
-                      {user.status === "active" && user.mustChangePassword && (
-                        <span className="ml-1.5 text-xs text-muted-foreground" title="Must change password on first login">
-                          •
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={user.status === "active"}
+                          onCheckedChange={() => toggleUserStatus(user.id)}
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          {user.status === "active" ? "Active" : "Deactivated"}
                         </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleUserStatus(user.id)}
-                      >
-                        {user.status === "active" ? "Deactivate" : "Activate"}
-                      </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

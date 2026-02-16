@@ -10,6 +10,9 @@ import Report from "./pages/Report";
 import WorkflowDefault from "./pages/WorkflowDefault";
 import ProjectIMotorbike from "./pages/ProjectIMotorbike";
 import AdminUsers from "./pages/AdminUsers";
+import AdminRoles from "./pages/AdminRoles";
+import AdminAuditLogs from "./pages/AdminAuditLogs";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const SIDEBAR_WIDTH = 110;
@@ -38,6 +41,9 @@ function AppLayout() {
           <Route path="/workflows/:workflowId" element={<WorkflowDefault />} />
           <Route path="/workflows/:workflowId/:projectId" element={<ProjectIMotorbike />} />
           <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/roles" element={<AdminRoles />} />
+          <Route path="/admin/audit-logs" element={<AdminAuditLogs />} />
+          <Route path="/profile" element={<Profile />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
