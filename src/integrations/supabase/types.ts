@@ -111,6 +111,33 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          id: string
+          name: string
+          email: string
+          status: string
+          must_change_password: boolean
+          created_at: string
+        }
+        Insert: {
+          id: string
+          name?: string
+          email: string
+          status?: string
+          must_change_password?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          email?: string
+          status?: string
+          must_change_password?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

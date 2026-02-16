@@ -1,5 +1,8 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users as UsersIcon, UserPlus, Copy, Check } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -30,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
+type AppRole = Database["public"]["Enums"]["app_role"];
 type UserRole = "admin" | "user";
 type UserStatus = "active" | "deactivated";
 
@@ -42,14 +46,6 @@ type User = {
   mustChangePassword?: boolean;
 };
 
-const INITIAL_USERS: User[] = [
-  { id: "1", name: "Jane Smith", email: "jane.smith@policystreet.com", role: "admin", status: "active" },
-  { id: "2", name: "John Doe", email: "john.doe@policystreet.com", role: "admin", status: "active" },
-  { id: "3", name: "Alice Wong", email: "alice.wong@policystreet.com", role: "user", status: "active" },
-  { id: "4", name: "Bob Chen", email: "bob.chen@policystreet.com", role: "user", status: "active" },
-  { id: "5", name: "Carol Lee", email: "carol.lee@policystreet.com", role: "user", status: "active" },
-];
-
 function generateOneTimePassword(length = 12): string {
   const charset = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes = new Uint8Array(length);
@@ -57,30 +53,120 @@ function generateOneTimePassword(length = 12): string {
   return Array.from(bytes, (b) => charset[b % charset.length]).join("");
 }
 
+function mapAppRoleToRole(role: AppRole): UserRole {
+  return role === "admin" ? "admin" : "user";
+}
+
+function mapRoleToAppRole(role: UserRole): AppRole {
+  return role as AppRole;
+}
+
+async function fetchUsers(): Promise<User[]> {
+  const [profilesRes, rolesRes] = await Promise.all([
+    supabase.from("profiles").select("id, name, email, status, must_change_password").order("created_at", { ascending: false }),
+    supabase.from("user_roles").select("user_id, role"),
+  ]);
+
+  if (profilesRes.error) throw profilesRes.error;
+  if (rolesRes.error) throw rolesRes.error;
+
+  const roleByUserId = new Map(rolesRes.data.map((r) => [r.user_id, r.role]));
+
+  return profilesRes.data.map((p) => ({
+    id: p.id,
+    name: p.name || p.email.split("@")[0] || "—",
+    email: p.email,
+    role: mapAppRoleToRole(roleByUserId.get(p.id) ?? "user"),
+    status: (p.status as UserStatus) || "active",
+    mustChangePassword: p.must_change_password ?? false,
+  }));
+}
+
 export default function AdminUsers() {
-  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  const queryClient = useQueryClient();
+  const { data: users = [], isLoading, error } = useQuery({ queryKey: ["admin-users"], queryFn: fetchUsers });
+
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>("user");
+  const [addError, setAddError] = useState("");
   const [addedResult, setAddedResult] = useState<{ password: string; email: string } | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const addUserMutation = useMutation({
+    mutationFn: async ({
+      email: trimmedEmail,
+      name: displayName,
+      role: userRole,
+      password,
+    }: {
+      email: string;
+      name: string;
+      role: UserRole;
+      password: string;
+    }) => {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+        options: { emailRedirectTo: undefined },
+      });
+      if (signUpError) throw signUpError;
+      const newUserId = signUpData.user?.id;
+      if (!newUserId) throw new Error("User created but no id returned");
+
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: newUserId,
+          name: displayName || trimmedEmail.split("@")[0] || "—",
+          email: trimmedEmail,
+          status: "active",
+          must_change_password: true,
+        },
+        { onConflict: "id" }
+      );
+      if (profileError) throw profileError;
+
+      const { error: roleError } = await supabase.from("user_roles").insert({
+        user_id: newUserId,
+        role: mapRoleToAppRole(userRole),
+      });
+      if (roleError) throw roleError;
+
+      return { password, email: trimmedEmail };
+    },
+    onSuccess: (result) => {
+      setAddedResult(result);
+      setAddError("");
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+    onError: (err: Error) => {
+      setAddError(err.message);
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: UserStatus }) => {
+      const { error } = await supabase.from("profiles").update({ status }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+  });
 
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedEmail = email.trim();
     if (!trimmedEmail) return;
+    setAddError("");
     const password = generateOneTimePassword();
-    const newUser: User = {
-      id: String(Date.now()),
-      name: name.trim() || trimmedEmail.split("@")[0] || "—",
+    addUserMutation.mutate({
       email: trimmedEmail,
+      name: name.trim(),
       role,
-      status: "active",
-      mustChangePassword: true,
-    };
-    setUsers((prev) => [...prev, newUser]);
-    setAddedResult({ password, email: trimmedEmail });
+      password,
+    });
     setName("");
     setEmail("");
     setRole("user");
@@ -89,7 +175,9 @@ export default function AdminUsers() {
   const closeAddDialog = () => {
     setAddOpen(false);
     setAddedResult(null);
+    setAddError("");
     setCopied(false);
+    addUserMutation.reset();
   };
 
   const copyPassword = () => {
@@ -99,14 +187,9 @@ export default function AdminUsers() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const toggleUserStatus = (id: string) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id
-          ? { ...u, status: u.status === "active" ? "deactivated" : "active" }
-          : u
-      )
-    );
+  const toggleUserStatus = (id: string, currentStatus: UserStatus) => {
+    const next = currentStatus === "active" ? "deactivated" : "active";
+    updateStatusMutation.mutate({ id, status: next });
   };
 
   return (
@@ -132,45 +215,62 @@ export default function AdminUsers() {
 
         <Card>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead className="w-[140px]">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow
-                    key={user.id}
-                    className={user.status === "deactivated" ? "opacity-60" : undefined}
-                  >
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={user.role === "admin" ? "default" : "secondary"}
-                      >
-                        {user.role === "admin" ? "Admin" : "User"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={user.status === "active"}
-                          onCheckedChange={() => toggleUserStatus(user.id)}
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          {user.status === "active" ? "Active" : "Deactivated"}
-                        </span>
-                      </div>
-                    </TableCell>
+            {error && (
+              <div className="p-4 text-sm text-destructive">
+                Failed to load users: {(error as Error).message}
+              </div>
+            )}
+            {isLoading ? (
+              <div className="p-12 text-center text-muted-foreground">Loading users…</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="w-[140px]">Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {users.length === 0 && !isLoading && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-12">
+                        No users yet. Add a user to get started.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {users.map((user) => (
+                    <TableRow
+                      key={user.id}
+                      className={user.status === "deactivated" ? "opacity-60" : undefined}
+                    >
+                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={user.role === "admin" ? "default" : "secondary"}
+                        >
+                          {user.role === "admin" ? "Admin" : "User"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={user.status === "active"}
+                            onCheckedChange={() => toggleUserStatus(user.id, user.status)}
+                            disabled={updateStatusMutation.isPending}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {user.status === "active" ? "Active" : "Deactivated"}
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </main>
@@ -230,6 +330,9 @@ export default function AdminUsers() {
             </>
           ) : (
             <form onSubmit={handleAddUser} className="space-y-4">
+              {addError && (
+                <p className="text-sm text-destructive">{addError}</p>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="add-name">Name</Label>
                 <Input
@@ -270,7 +373,9 @@ export default function AdminUsers() {
                 <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit">Add user & generate password</Button>
+                <Button type="submit" disabled={addUserMutation.isPending}>
+                  {addUserMutation.isPending ? "Adding…" : "Add user & generate password"}
+                </Button>
               </DialogFooter>
             </form>
           )}
