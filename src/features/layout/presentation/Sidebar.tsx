@@ -19,6 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/features/auth/presentation/useAuth";
 
 interface NavItemProps {
   to: string;
@@ -80,13 +81,13 @@ function Section({ label, icon: Icon, defaultOpen = false, children }: SectionPr
 
 export function Sidebar() {
   const location = useLocation();
+  const { signOut } = useAuth();
   const isActive = (path: string) => location.pathname === path;
   const isWorkflowActive = (workflowId: string) =>
     location.pathname.startsWith(`/workflows/${workflowId}`);
 
   return (
     <div className="fixed left-0 top-0 h-screen w-[110px] border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col items-center z-50">
-      {/* Branding */}
       <div className="border-b border-sidebar-border w-full p-4 flex flex-col items-center gap-1">
         <span className="text-sm font-bold italic text-sidebar-foreground leading-tight text-center">
           PolicyStreet
@@ -96,31 +97,25 @@ export function Sidebar() {
         </span>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 w-full overflow-y-auto px-2 py-2 space-y-1">
-        {/* Tools */}
         <Section label="Tools" icon={FileText} defaultOpen>
           <NavItem to="/report" icon={FileText} label="Report Generator" isActive={isActive("/report")} />
         </Section>
 
         <div className="mx-2 my-1 border-t border-sidebar-border" />
 
-        {/* Database */}
         <Section label="Database" icon={Database}>
-          {/* Future items */}
           <p className="text-[10px] text-sidebar-foreground/30 text-center py-2">Coming soon</p>
         </Section>
 
         <div className="mx-2 my-1 border-t border-sidebar-border" />
 
-        {/* Workflows - Affiliates opens project panel with projects (e.g. iMotorbike) */}
         <Section label="Workflows" icon={Workflow}>
           <NavItem to="/workflows/affiliates" icon={Workflow} label="Affiliates" isActive={isWorkflowActive("affiliates")} />
         </Section>
 
         <div className="mx-2 my-1 border-t border-sidebar-border" />
 
-        {/* Admin */}
         <Section label="Admin" icon={Users}>
           <NavItem to="/admin/users" icon={Users} label="Users" isActive={isActive("/admin/users")} />
           <NavItem to="/admin/roles" icon={Shield} label="Roles" isActive={isActive("/admin/roles")} />
@@ -128,7 +123,6 @@ export function Sidebar() {
         </Section>
       </nav>
 
-      {/* Profile - menu with Settings & Logout */}
       <div className="border-t border-sidebar-border w-full p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -154,9 +148,7 @@ export function Sidebar() {
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-muted-foreground focus:text-destructive"
-              onSelect={() => {
-                // TODO: wire to auth logout
-              }}
+              onSelect={() => signOut()}
             >
               <LogOut className="mr-2 h-4 w-4" />
               Logout

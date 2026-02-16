@@ -1,11 +1,11 @@
 import { Navigate, useParams } from "react-router-dom";
-import { WORKFLOWS } from "@/components/ProjectPanel";
+import { WORKFLOWS } from "@/features/layout/presentation/ProjectPanel";
 
 /**
  * Shown when on /workflows/:workflowId with no project selected.
  * Redirects to first project if the workflow has any; otherwise shows placeholder.
  */
-export default function WorkflowDefault() {
+export default function WorkflowDefaultPage() {
   const { workflowId } = useParams<{ workflowId: string }>();
   if (!workflowId) return null;
 

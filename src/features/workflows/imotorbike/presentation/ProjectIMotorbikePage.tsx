@@ -11,7 +11,7 @@ import {
   type Interval,
 } from "date-fns";
 import { Upload, Filter, Check, Clock, ClipboardList, ArrowUp, ArrowDown } from "lucide-react";
-import { WORKFLOWS } from "@/components/ProjectPanel";
+import { WORKFLOWS } from "@/features/layout/presentation/ProjectPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -47,10 +47,8 @@ type FilterPreset = "this_month" | "last_month" | "custom";
 function parsePurchasedDateTime(value: string): Date | null {
   if (!value?.trim()) return null;
   const s = value.trim();
-  // Try ISO first
   let d = parseISO(s);
   if (isValid(d)) return d;
-  // Try "DD/MM/YYYY HH:mm" or "DD/MM/YYYY"
   d = parse(s, "dd/MM/yyyy HH:mm", new Date());
   if (isValid(d)) return d;
   d = parse(s, "dd/MM/yyyy", new Date());
@@ -115,7 +113,7 @@ function filterByDateRange(
 
 type DateRange = { from: Date; to?: Date };
 
-const ProjectIMotorbike = () => {
+export default function ProjectIMotorbikePage() {
   const { workflowId, projectId } = useParams<{ workflowId: string; projectId: string }>();
   const workflow = workflowId ? WORKFLOWS[workflowId] : null;
   const project = workflow?.projects.find((p) => p.id === projectId);
@@ -207,14 +205,12 @@ const ProjectIMotorbike = () => {
           </div>
         </div>
 
-        {/* Issuance tab */}
         <div className="border-b border-border mb-4">
           <span className="inline-block px-1 pb-2 text-sm font-medium border-b-2 border-primary text-primary">
             Issuance
           </span>
         </div>
 
-        {/* Summary + Upload + Filters */}
         <div className="flex flex-wrap items-center gap-4 mb-4">
           <p className="text-sm text-muted-foreground">
             {lastUpdated
@@ -297,7 +293,6 @@ const ProjectIMotorbike = () => {
           </div>
         </div>
 
-        {/* Quick overview - compact */}
         <div className="flex flex-wrap gap-3 mb-6">
           <Card className="flex-1 min-w-[120px]">
             <CardContent className="py-2.5 px-3 flex items-center justify-between gap-2">
@@ -334,7 +329,6 @@ const ProjectIMotorbike = () => {
           </Card>
         </div>
 
-        {/* Table */}
         <Card>
           <div className="overflow-x-auto">
             <Table>
@@ -459,6 +453,4 @@ const ProjectIMotorbike = () => {
       </main>
     </div>
   );
-};
-
-export default ProjectIMotorbike;
+}

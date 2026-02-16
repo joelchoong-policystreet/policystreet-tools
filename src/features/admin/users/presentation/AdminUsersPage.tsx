@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users as UsersIcon, UserPlus, Copy, Check } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import { supabase } from "@/data/supabase/client";
+import type { Database } from "@/data/supabase/types";
+import { PageHeader } from "@/shared/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -82,7 +83,7 @@ async function fetchUsers(): Promise<User[]> {
   }));
 }
 
-export default function AdminUsers() {
+export default function AdminUsersPage() {
   const queryClient = useQueryClient();
   const { data: users = [], isLoading, error } = useQuery({ queryKey: ["admin-users"], queryFn: fetchUsers });
 
@@ -195,23 +196,17 @@ export default function AdminUsers() {
   return (
     <div className="min-h-screen bg-background">
       <main className="container py-8">
-        <div className="flex items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-              <UsersIcon className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-              <p className="text-sm text-muted-foreground">
-                Users allowed to use PolicyStreet
-              </p>
-            </div>
-          </div>
-          <Button onClick={() => setAddOpen(true)}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add user
-          </Button>
-        </div>
+        <PageHeader
+          icon={UsersIcon}
+          title="Users"
+          description="Users allowed to use PolicyStreet"
+          action={
+            <Button onClick={() => setAddOpen(true)}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add user
+            </Button>
+          }
+        />
 
         <Card>
           <CardContent className="p-0">

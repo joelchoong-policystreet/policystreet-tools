@@ -7,7 +7,7 @@ import { SAMPLE_DATA, type ReportRow } from "@/lib/sample-data";
 import { generatePDF } from "@/lib/pdf-generator";
 import { toast } from "@/hooks/use-toast";
 
-const Report = () => {
+export default function ReportPage() {
   const [data, setData] = useState<ReportRow[]>(SAMPLE_DATA);
 
   const handleGenerate = () => {
@@ -54,6 +54,4 @@ const Report = () => {
       </main>
     </div>
   );
-};
-
-export default Report;
+}

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { FileText, ArrowRight } from "lucide-react";
 
-const Home = () => {
+export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       <main className="container py-20 space-y-12">
@@ -34,6 +34,4 @@ const Home = () => {
       </main>
     </div>
   );
-};
-
-export default Home;
+}

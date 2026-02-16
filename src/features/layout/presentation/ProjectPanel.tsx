@@ -36,7 +36,6 @@ export function ProjectPanel() {
   const { workflowId, projectId } = useWorkflowParams();
   const [optimisticProjectId, setOptimisticProjectId] = useState<string | null>(null);
 
-  // Sync optimistic state when URL catches up; clear when workflow changes
   useEffect(() => {
     if (projectId) setOptimisticProjectId(null);
   }, [projectId]);

@@ -1,21 +1,23 @@
 import { useState } from "react";
 import { UserCircle, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/features/auth/presentation/useAuth";
+import { supabase } from "@/data/supabase/client";
+import { PageHeader } from "@/shared/components/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
-// Placeholder until auth is wired – replace with actual user from context/API
-const PLACEHOLDER_EMAIL = "you@policystreet.com";
-
-export default function Profile() {
+export default function ProfilePage() {
+  const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [updating, setUpdating] = useState(false);
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
     if (newPassword !== confirmPassword) {
@@ -26,8 +28,14 @@ export default function Profile() {
       setMessage({ type: "error", text: "New password must be at least 8 characters." });
       return;
     }
-    // TODO: call API to change password
-    setMessage({ type: "success", text: "Password updated. Use your new password on next login." });
+    setUpdating(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setUpdating(false);
+    if (error) {
+      setMessage({ type: "error", text: error.message });
+      return;
+    }
+    setMessage({ type: "success", text: "Password changed successfully." });
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
@@ -36,15 +44,11 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-background">
       <main className="container py-8 max-w-2xl">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-            <UserCircle className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
-            <p className="text-sm text-muted-foreground">Manage your account</p>
-          </div>
-        </div>
+        <PageHeader
+          icon={UserCircle}
+          title="Profile"
+          description="Manage your account"
+        />
 
         <Card className="mb-6">
           <CardHeader>
@@ -58,7 +62,7 @@ export default function Profile() {
             <Input
               id="profile-email"
               type="email"
-              value={PLACEHOLDER_EMAIL}
+              value={user?.email ?? ""}
               readOnly
               className="mt-1.5 bg-muted/50"
             />
@@ -71,7 +75,7 @@ export default function Profile() {
               <Lock className="h-4 w-4" />
               Change password
             </CardTitle>
-            <CardDescription>Set a new password. You will need to sign in again after changing it.</CardDescription>
+            <CardDescription>Set a new password. You will stay signed in after changing it.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleChangePassword} className="space-y-4">
@@ -118,7 +122,9 @@ export default function Profile() {
                   {message.text}
                 </p>
               )}
-              <Button type="submit">Update password</Button>
+              <Button type="submit" disabled={updating}>
+                {updating ? "Updating…" : "Update password"}
+              </Button>
             </form>
           </CardContent>
         </Card>

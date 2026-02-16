@@ -3,19 +3,19 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { Sidebar } from "@/components/Sidebar";
-import { ProjectPanel } from "@/components/ProjectPanel";
-import Home from "./pages/Home";
-import Report from "./pages/Report";
-import Login from "./pages/Login";
-import WorkflowDefault from "./pages/WorkflowDefault";
-import ProjectIMotorbike from "./pages/ProjectIMotorbike";
-import AdminUsers from "./pages/AdminUsers";
-import AdminRoles from "./pages/AdminRoles";
-import AdminAuditLogs from "./pages/AdminAuditLogs";
-import Profile from "./pages/Profile";
-import NotFound from "./pages/NotFound";
+import { AuthProvider, useAuth } from "@/features/auth/presentation/useAuth";
+import { Sidebar } from "@/features/layout/presentation/Sidebar";
+import { ProjectPanel } from "@/features/layout/presentation/ProjectPanel";
+import HomePage from "@/features/home/presentation/HomePage";
+import ReportPage from "@/features/report/presentation/ReportPage";
+import LoginPage from "@/features/auth/presentation/LoginPage";
+import WorkflowDefaultPage from "@/features/workflows/presentation/WorkflowDefaultPage";
+import ProjectIMotorbikePage from "@/features/workflows/imotorbike/presentation/ProjectIMotorbikePage";
+import AdminUsersPage from "@/features/admin/users/presentation/AdminUsersPage";
+import AdminRolesPage from "@/features/admin/roles/presentation/AdminRolesPage";
+import AdminAuditLogsPage from "@/features/admin/audit-logs/presentation/AdminAuditLogsPage";
+import ProfilePage from "@/features/profile/presentation/ProfilePage";
+import NotFoundPage from "@/features/not-found/presentation/NotFoundPage";
 
 const SIDEBAR_WIDTH = 110;
 const PROJECT_PANEL_WIDTH = 220;
@@ -44,17 +44,17 @@ function AppLayout() {
           style={{ marginLeft: mainMarginLeft, width: `calc(100% - ${mainMarginLeft}px)` }}
         >
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/report" element={<Report />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/report" element={<ReportPage />} />
             <Route path="/workflows/imotorbike" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
             <Route path="/workflows/imotorbike/:projectId" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
-            <Route path="/workflows/:workflowId" element={<WorkflowDefault />} />
-            <Route path="/workflows/:workflowId/:projectId" element={<ProjectIMotorbike />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/roles" element={<AdminRoles />} />
-            <Route path="/admin/audit-logs" element={<AdminAuditLogs />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/workflows/:workflowId" element={<WorkflowDefaultPage />} />
+            <Route path="/workflows/:workflowId/:projectId" element={<ProjectIMotorbikePage />} />
+            <Route path="/admin/users" element={<AdminUsersPage />} />
+            <Route path="/admin/roles" element={<AdminRolesPage />} />
+            <Route path="/admin/audit-logs" element={<AdminAuditLogsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </div>
       </div>
@@ -85,7 +85,7 @@ function LoginGuard() {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (user) return <Navigate to="/" replace />;
-  return <Login />;
+  return <LoginPage />;
 }
 
 export default App;

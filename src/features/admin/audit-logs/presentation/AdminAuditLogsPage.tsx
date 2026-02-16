@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ClipboardList, Search, Download, Settings } from "lucide-react";
+import { PageHeader } from "@/shared/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -40,7 +41,6 @@ const PAGE_SIZE = 10;
 const TIME_FILTERS = ["all", "7d", "30d", "90d"] as const;
 type TimeFilter = (typeof TIME_FILTERS)[number];
 
-// Mock audit log data for PolicyStreet Tools
 const MOCK_LOGS: AuditLogEntry[] = [
   { id: "1", time: new Date("2026-02-16T10:07:50"), user: "Jane Smith", eventType: "User", change: "User added", itemAffected: "alice.wong@policystreet.com" },
   { id: "2", time: new Date("2026-02-16T09:45:22"), user: "John Doe", eventType: "User", change: "Status changed to deactivated", itemAffected: "Bob Chen" },
@@ -66,7 +66,7 @@ function filterByTime(entries: AuditLogEntry[], filter: TimeFilter): AuditLogEnt
   return entries.filter((e) => e.time >= from);
 }
 
-export default function AdminAuditLogs() {
+export default function AdminAuditLogsPage() {
   const [keyword, setKeyword] = useState("");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -95,17 +95,11 @@ export default function AdminAuditLogs() {
   return (
     <div className="min-h-screen bg-background">
       <main className="container py-8">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-            <ClipboardList className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Audit Log</h1>
-            <p className="text-sm text-muted-foreground">
-              History of changes across PolicyStreet Tools. Use it to track user actions, report generation, workflow updates, and logins.
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          icon={ClipboardList}
+          title="Audit Log"
+          description="History of changes across PolicyStreet Tools. Use it to track user actions, report generation, workflow updates, and logins."
+        />
 
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <div className="flex flex-wrap items-center gap-3">
