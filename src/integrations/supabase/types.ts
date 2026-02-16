@@ -14,7 +14,103 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      companies: {
+        Row: {
+          created_at: string
+          department_id: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          department_id: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companies_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      departments: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      issuances: {
+        Row: {
+          company_id: string
+          coverage: string | null
+          created_at: string
+          customer: string | null
+          id: string
+          instant_quotation: string | null
+          insurer: string | null
+          partner: string | null
+          plate_no: string | null
+          purchased_date: string | null
+          time_lapsed: string | null
+        }
+        Insert: {
+          company_id: string
+          coverage?: string | null
+          created_at?: string
+          customer?: string | null
+          id?: string
+          instant_quotation?: string | null
+          insurer?: string | null
+          partner?: string | null
+          plate_no?: string | null
+          purchased_date?: string | null
+          time_lapsed?: string | null
+        }
+        Update: {
+          company_id?: string
+          coverage?: string | null
+          created_at?: string
+          customer?: string | null
+          id?: string
+          instant_quotation?: string | null
+          insurer?: string | null
+          partner?: string | null
+          plate_no?: string | null
+          purchased_date?: string | null
+          time_lapsed?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issuances_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
