@@ -288,9 +288,18 @@ export function useIMotorbikeProjectView() {
     const q = ocrSearchQuery.trim().toLowerCase();
     if (!q) return ocrSorted;
     return ocrSorted.filter((r) => {
-      const raw = (r.raw_data ?? {}) as Record<string, unknown>;
-      const str = JSON.stringify(Object.values(raw)).toLowerCase();
-      return str.includes(q);
+      const vals = [
+        r.date_issue,
+        r.vehicle_no,
+        r.insured_name,
+        r.insured_ic_no,
+        r.insured_email,
+        r.vehicle_make_model,
+        r.type_of_cover,
+        r.insurer,
+        r.file_name,
+      ];
+      return vals.some((v) => (v ?? "").toLowerCase().includes(q));
     });
   }, [ocrSorted, ocrSearchQuery]);
   const ocrTotalPages = Math.max(1, Math.ceil(ocrSearchFiltered.length / PAGE_SIZE));
@@ -525,14 +534,48 @@ export function useIMotorbikeProjectView() {
     try {
       const text = await file.text();
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+      const csvToDb: Record<string, keyof IntTablesInsert<"ocr_data_table">> = {
+        "date issue": "date_issue",
+        "vehicle no": "vehicle_no",
+        "insured name": "insured_name",
+        "insured ic no": "insured_ic_no",
+        "insurer contact no": "insurer_contact_no",
+        "insured email": "insured_email",
+        "vehicle make/model": "vehicle_make_model",
+        "type of cover": "type_of_cover",
+        "sum insured": "sum_insured",
+        premium: "premium",
+        ncd: "ncd",
+        "total base premium": "total_base_premium",
+        "total extra coverage": "total_extra_coverage",
+        "gross premium": "gross_premium",
+        "service tax": "service_tax",
+        "stamp duty": "stamp_duty",
+        "total amount payable (rounded)": "total_amount_payable_rounded",
+        insurer: "insurer",
+        file_name: "file_name",
+        "created timestamp": "created_timestamp",
+        "formatted timestamp": "formatted_timestamp",
+        "process duration": "process_duration",
+      };
+      const norm = (s: string) => String(s).toLowerCase().trim().replace(/\s+/g, " ");
       const ocrDataRows = (parsed.data ?? []).filter(
         (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
       );
-      const toInsert = ocrDataRows.map((raw) => ({
-        company_id: companyId,
-        project: projectId,
-        raw_data: raw as IntTables<"ocr_data_table">["raw_data"],
-      }));
+      const toInsert = ocrDataRows.map((raw) => {
+        const row: IntTablesInsert<"ocr_data_table"> = {
+          company_id: companyId,
+          project: projectId,
+        };
+        for (const [csvKey, val] of Object.entries(raw)) {
+          if (val == null || String(val).trim() === "") continue;
+          const dbCol = csvToDb[norm(csvKey)];
+          if (dbCol && dbCol !== "company_id" && dbCol !== "project") {
+            (row as Record<string, string | null>)[dbCol] = String(val).trim();
+          }
+        }
+        return row;
+      });
       if (toInsert.length > 0) {
         const { error: err } = await supabase.from("ocr_data_table").insert(toInsert);
         if (err) throw err;

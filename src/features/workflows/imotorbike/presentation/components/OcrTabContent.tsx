@@ -91,10 +91,28 @@ export function OcrTabContent({
           <Table>
             <TableHeader>
               <TableRow>
-                {rows.length > 0 &&
-                  (Object.keys((rows[0].raw_data ?? {}) as Record<string, unknown>) as string[]).map(
-                    (key) => <TableHead key={key}>{key}</TableHead>
-                  )}
+                <TableHead>Date Issue</TableHead>
+                <TableHead>Vehicle No</TableHead>
+                <TableHead>Insured Name</TableHead>
+                <TableHead>Insured IC No</TableHead>
+                <TableHead>Insurer Contact No</TableHead>
+                <TableHead>Insured Email</TableHead>
+                <TableHead>Vehicle Make/Model</TableHead>
+                <TableHead>Type of Cover</TableHead>
+                <TableHead>Sum Insured</TableHead>
+                <TableHead>Premium</TableHead>
+                <TableHead>NCD</TableHead>
+                <TableHead>Total Base Premium</TableHead>
+                <TableHead>Total Extra Coverage</TableHead>
+                <TableHead>Gross Premium</TableHead>
+                <TableHead>Service Tax</TableHead>
+                <TableHead>Stamp Duty</TableHead>
+                <TableHead>Total Amount Payable</TableHead>
+                <TableHead>Insurer</TableHead>
+                <TableHead>file_name</TableHead>
+                <TableHead>Created Timestamp</TableHead>
+                <TableHead>Formatted Timestamp</TableHead>
+                <TableHead>Process Duration</TableHead>
                 <TableHead>
                   <button
                     type="button"
@@ -109,43 +127,59 @@ export function OcrTabContent({
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={100} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={23} className="text-center text-muted-foreground py-12">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={100} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={23} className="text-center text-muted-foreground py-12">
                     {emptyMessage}
                   </TableCell>
                 </TableRow>
               ) : (
-                (() => {
-                  const colKeys = Object.keys((rows[0].raw_data ?? {}) as Record<string, unknown>);
-                  return rows.map((row) => {
-                    const raw = (row.raw_data ?? {}) as Record<string, unknown>;
-                    return (
-                      <TableRow key={row.id}>
-                        {colKeys.map((key) => {
-                          const val = raw[key];
-                          const str = val != null && String(val).trim() !== "" ? String(val) : "";
-                          return (
-                            <TableCell
-                              key={key}
-                              className="max-w-[200px] truncate"
-                              title={str}
-                            >
-                              {str ? (str.length > 60 ? `${str.slice(0, 60)}…` : str) : "—"}
-                            </TableCell>
-                          );
-                        })}
-                        <TableCell>
-                          {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
+                rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {[
+                      row.date_issue,
+                      row.vehicle_no,
+                      row.insured_name,
+                      row.insured_ic_no,
+                      row.insurer_contact_no,
+                      row.insured_email,
+                      row.vehicle_make_model,
+                      row.type_of_cover,
+                      row.sum_insured,
+                      row.premium,
+                      row.ncd,
+                      row.total_base_premium,
+                      row.total_extra_coverage,
+                      row.gross_premium,
+                      row.service_tax,
+                      row.stamp_duty,
+                      row.total_amount_payable_rounded,
+                      row.insurer,
+                      row.file_name,
+                      row.created_timestamp,
+                      row.formatted_timestamp,
+                      row.process_duration,
+                    ].map((val, i) => {
+                      const str = val != null && String(val).trim() !== "" ? String(val) : "";
+                      return (
+                        <TableCell
+                          key={i}
+                          className="max-w-[200px] truncate"
+                          title={str}
+                        >
+                          {str ? (str.length > 50 ? `${str.slice(0, 50)}…` : str) : "—"}
                         </TableCell>
-                      </TableRow>
-                    );
-                  });
-                })()
+                      );
+                    })}
+                    <TableCell>
+                      {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>

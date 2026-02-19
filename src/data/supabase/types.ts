@@ -158,31 +158,81 @@ export type Database = {
           id: string
           company_id: string
           project: string | null
-          document_reference: string | null
-          extracted_text: string | null
-          source_filename: string | null
-          raw_data: Json | null
           created_at: string
+          date_issue: string | null
+          vehicle_no: string | null
+          insured_name: string | null
+          insured_ic_no: string | null
+          insurer_contact_no: string | null
+          insured_email: string | null
+          vehicle_make_model: string | null
+          type_of_cover: string | null
+          sum_insured: string | null
+          premium: string | null
+          ncd: string | null
+          total_base_premium: string | null
+          total_extra_coverage: string | null
+          gross_premium: string | null
+          service_tax: string | null
+          stamp_duty: string | null
+          total_amount_payable_rounded: string | null
+          insurer: string | null
+          file_name: string | null
+          created_timestamp: string | null
+          formatted_timestamp: string | null
+          process_duration: string | null
         }
         Insert: {
-          id?: string
           company_id: string
           project?: string | null
-          document_reference?: string | null
-          extracted_text?: string | null
-          source_filename?: string | null
-          raw_data?: Json | null
-          created_at?: string
+          date_issue?: string | null
+          vehicle_no?: string | null
+          insured_name?: string | null
+          insured_ic_no?: string | null
+          insurer_contact_no?: string | null
+          insured_email?: string | null
+          vehicle_make_model?: string | null
+          type_of_cover?: string | null
+          sum_insured?: string | null
+          premium?: string | null
+          ncd?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          gross_premium?: string | null
+          service_tax?: string | null
+          stamp_duty?: string | null
+          total_amount_payable_rounded?: string | null
+          insurer?: string | null
+          file_name?: string | null
+          created_timestamp?: string | null
+          formatted_timestamp?: string | null
+          process_duration?: string | null
         }
         Update: {
-          id?: string
           company_id?: string
           project?: string | null
-          document_reference?: string | null
-          extracted_text?: string | null
-          source_filename?: string | null
-          raw_data?: Json | null
-          created_at?: string
+          date_issue?: string | null
+          vehicle_no?: string | null
+          insured_name?: string | null
+          insured_ic_no?: string | null
+          insurer_contact_no?: string | null
+          insured_email?: string | null
+          vehicle_make_model?: string | null
+          type_of_cover?: string | null
+          sum_insured?: string | null
+          premium?: string | null
+          ncd?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          gross_premium?: string | null
+          service_tax?: string | null
+          stamp_duty?: string | null
+          total_amount_payable_rounded?: string | null
+          insurer?: string | null
+          file_name?: string | null
+          created_timestamp?: string | null
+          formatted_timestamp?: string | null
+          process_duration?: string | null
         }
         Relationships: [
           {
