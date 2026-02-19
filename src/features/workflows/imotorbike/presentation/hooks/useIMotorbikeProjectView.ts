@@ -241,14 +241,33 @@ export function useIMotorbikeProjectView() {
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
       const headers = (parsed.meta.fields ?? []).filter((h) => h != null && String(h).trim() !== "");
       const headerMap = new Map<string, string>();
-      headers.forEach((h) => headerMap.set(String(h).toLowerCase().trim(), String(h)));
+      const norm = (s: string) => String(s).toLowerCase().trim().replace(/\s+/g, " ");
+      headers.forEach((h) => headerMap.set(norm(h), String(h)));
       const get = (raw: Record<string, string>, ...keys: string[]) => {
         for (const k of keys) {
-          const key = String(k).toLowerCase().trim();
+          const key = String(k).toLowerCase().trim().replace(/\s+/g, " ");
           const orig = headerMap.get(key);
           if (orig === undefined) continue;
           const val = raw[orig];
           if (val !== undefined && val !== null) return String(val).trim() || null;
+        }
+        return null;
+      };
+      const getSumInsured = (raw: Record<string, string>) => {
+        const v = get(raw, "sum insured (rm)", "sum insured(rm)", "sum insured", "sum_insured");
+        if (v !== null) return v;
+        for (const h of headers) {
+          const n = norm(h);
+          const isSumInsured =
+            (n.includes("sum") && n.includes("insured") && n !== "name of insured") ||
+            n.includes("insured amount") ||
+            n.includes("insured value") ||
+            n === "si" ||
+            /^si\s*\(?rm\)?$/i.test(n);
+          if (isSumInsured) {
+            const val = raw[h];
+            if (val !== undefined && val !== null && String(val).trim() !== "") return String(val).trim();
+          }
         }
         return null;
       };
@@ -267,7 +286,7 @@ export function useIMotorbikeProjectView() {
         client_name: get(raw, "name of insured", "client", "client_name") ?? null,
         vehicle_no: get(raw, "vehicle no", "vehicle no.", "vehicle_no") ?? null,
         status: get(raw, "status", "trx status", "trx_status") ?? null,
-        sum_insured: parseNumeric(get(raw, "sum insured (rm)", "sum insured", "sum_insured")),
+        sum_insured: parseNumeric(getSumInsured(raw)),
         cn_no: get(raw, "c/n no.", "c/n no", "cn_no") ?? null,
         account_no: get(raw, "account no.", "account no", "account_no") ?? null,
         issue_date: toISODateOnly(get(raw, "issue date", "issue_date")),
@@ -302,12 +321,21 @@ export function useIMotorbikeProjectView() {
         total_amount: parseNumeric(get(raw, "totalamt", "total_amount")),
       }));
       if (toInsert.length > 0) {
-        const { error: err } = await supabase.from("insurer_billing_data").insert(toInsert);
+        const rows = toInsert.map((row) =>
+          Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined))
+        ) as IntTablesInsert<"insurer_billing_data">[];
+        const { error: err } = await supabase.from("insurer_billing_data").insert(rows);
         if (err) throw err;
         await queryClient.invalidateQueries({ queryKey: ["imotorbike-insurer-billing", companyId] });
       }
     } catch (err) {
-      setBillingUploadError(err instanceof Error ? err.message : "Upload failed");
+      const msg =
+        (err as { message?: string; details?: string })?.message ??
+        (err instanceof Error ? err.message : null);
+      const details = (err as { details?: string })?.details;
+      setBillingUploadError(
+        [msg, details].filter(Boolean).join(details ? " — " : "") || "Upload failed"
+      );
     } finally {
       setUploading(false);
       e.target.value = "";
