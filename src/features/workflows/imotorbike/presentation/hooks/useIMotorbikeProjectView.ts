@@ -591,7 +591,7 @@ export function useIMotorbikeProjectView() {
       const ocrDataRows = (parsed.data ?? []).filter(
         (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
       );
-      const toInsert = ocrDataRows.map((raw) => {
+      const built = ocrDataRows.map((raw) => {
         const row: IntTablesInsert<"ocr_data_table"> = {
           company_id: companyId,
           project: projectId,
@@ -603,13 +603,42 @@ export function useIMotorbikeProjectView() {
             (row as Record<string, string | null>)[dbCol] = String(val).trim();
           }
         }
-        return row;
+        return { raw, row };
       });
-      if (toInsert.length > 0) {
+      const hasInsurer = ({ row }: { row: IntTablesInsert<"ocr_data_table"> }) =>
+        (row as Record<string, unknown>).insurer != null &&
+        String((row as Record<string, unknown>).insurer).trim() !== "";
+      const validRows = built.filter(hasInsurer);
+      const rejectedRows = built.filter((x) => !hasInsurer(x));
+
+      let importedCount = 0;
+      if (validRows.length > 0) {
+        const toInsert = validRows.map(({ row }) => row);
         const { error: err } = await supabase.from("ocr_data_table").insert(toInsert);
         if (err) throw err;
-        await queryClient.invalidateQueries({ queryKey: ["ocr", companyId, projectId] });
-        toast({ title: "Upload successful", description: `${toInsert.length} OCR row(s) imported.` });
+        importedCount = toInsert.length;
+      }
+      if (rejectedRows.length > 0 && companyId) {
+        const errorInserts = rejectedRows.map(({ raw }) => ({
+          company_id: companyId,
+          source: "ocr",
+          workflow: projectId,
+          raw_data: raw as IntTables<"upload_errors">["raw_data"],
+          rejection_reason: "Missing insurer",
+          file_name: file.name,
+        }));
+        await supabase.from("upload_errors").insert(errorInserts);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["ocr", companyId, projectId] });
+      if (rejectedRows.length > 0) {
+        await queryClient.invalidateQueries({ queryKey: ["upload-errors", companyId, projectId] });
+      }
+      if (importedCount > 0 || rejectedRows.length > 0) {
+        const desc =
+          rejectedRows.length > 0
+            ? `${importedCount} OCR row(s) imported. ${rejectedRows.length} row(s) skipped (see Errors tab).`
+            : `${importedCount} OCR row(s) imported.`;
+        toast({ title: "Upload successful", description: desc });
       }
     } catch (err) {
       const msg =
