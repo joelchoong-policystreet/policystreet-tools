@@ -239,13 +239,16 @@ export function useIMotorbikeProjectView() {
     try {
       const text = await file.text();
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-      const headers = parsed.meta.fields ?? [];
+      const headers = (parsed.meta.fields ?? []).filter((h) => h != null && String(h).trim() !== "");
       const headerMap = new Map<string, string>();
-      headers.forEach((h) => headerMap.set(h.toLowerCase().trim(), h));
+      headers.forEach((h) => headerMap.set(String(h).toLowerCase().trim(), String(h)));
       const get = (raw: Record<string, string>, ...keys: string[]) => {
         for (const k of keys) {
-          const orig = headerMap.get(k.toLowerCase().trim());
-          if (orig && raw[orig]) return raw[orig];
+          const key = String(k).toLowerCase().trim();
+          const orig = headerMap.get(key);
+          if (orig === undefined) continue;
+          const val = raw[orig];
+          if (val !== undefined && val !== null) return String(val).trim() || null;
         }
         return null;
       };
@@ -263,7 +266,7 @@ export function useIMotorbikeProjectView() {
         policy_no: get(raw, "policy no.", "policy no", "policy_no") ?? null,
         client_name: get(raw, "name of insured", "client", "client_name") ?? null,
         vehicle_no: get(raw, "vehicle no", "vehicle no.", "vehicle_no") ?? null,
-        status: get(raw, "status") ?? null,
+        status: get(raw, "status", "trx status", "trx_status") ?? null,
         sum_insured: parseNumeric(get(raw, "sum insured (rm)", "sum insured", "sum_insured")),
         cn_no: get(raw, "c/n no.", "c/n no", "cn_no") ?? null,
         account_no: get(raw, "account no.", "account no", "account_no") ?? null,
