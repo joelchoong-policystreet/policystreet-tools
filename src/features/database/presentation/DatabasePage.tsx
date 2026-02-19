@@ -129,7 +129,7 @@ async function fetchIssuances(): Promise<IssuanceRow[]> {
 }
 
 export default function DatabasePage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const viewParam = searchParams.get("view");
   const viewMode: ViewMode =
     viewParam === "quotation" ? "quotation" : "issuance";
@@ -256,13 +256,15 @@ export default function DatabasePage() {
 
         <div className="flex flex-wrap items-center gap-4 mb-4">
           <div className="flex flex-wrap gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Filter className="mr-2 h-4 w-4" />
-                  {filterLabel}
-                </Button>
-              </DropdownMenuTrigger>
+            {viewMode === "issuance" && (
+              <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Filter className="mr-2 h-4 w-4" />
+                    {filterLabel}
+                  </Button>
+                </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 <DropdownMenuItem onClick={() => setFilterPreset("this_month")}>
                   This month
@@ -290,52 +292,54 @@ export default function DatabasePage() {
                 </Popover>
               </DropdownMenuContent>
             </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Insurer: {selectedInsurer ?? "All"}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => setSelectedInsurer(null)}>
-                  All
-                </DropdownMenuItem>
-                {insurerOptions.map((ins) => (
-                  <DropdownMenuItem
-                    key={ins ?? ""}
-                    onClick={() => setSelectedInsurer(ins ?? null)}
-                  >
-                    {ins}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Insurer: {selectedInsurer ?? "All"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => setSelectedInsurer(null)}>
+                    All
                   </DropdownMenuItem>
-                ))}
-                {insurerOptions.length === 0 && (
-                  <DropdownMenuItem disabled>No insurers in data</DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Partner: {selectedPartner ?? "All"}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => setSelectedPartner(null)}>
-                  All
-                </DropdownMenuItem>
-                {partnerOptions.map((p) => (
-                  <DropdownMenuItem
-                    key={p ?? ""}
-                    onClick={() => setSelectedPartner(p ?? null)}
-                  >
-                    {p}
-                  </DropdownMenuItem>
-                ))}
-                {partnerOptions.length === 0 && (
-                  <DropdownMenuItem disabled>No partners in data</DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  {insurerOptions.map((ins) => (
+                    <DropdownMenuItem
+                      key={ins ?? ""}
+                      onClick={() => setSelectedInsurer(ins ?? null)}
+                    >
+                      {ins}
+                    </DropdownMenuItem>
+                  ))}
+                  {insurerOptions.length === 0 && (
+                    <DropdownMenuItem disabled>No insurers in data</DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Partner: {selectedPartner ?? "All"}
+                  </Button>
+                </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => setSelectedPartner(null)}>
+                      All
+                    </DropdownMenuItem>
+                    {partnerOptions.map((p) => (
+                      <DropdownMenuItem
+                        key={p ?? ""}
+                        onClick={() => setSelectedPartner(p ?? null)}
+                      >
+                        {p}
+                      </DropdownMenuItem>
+                    ))}
+                    {partnerOptions.length === 0 && (
+                      <DropdownMenuItem disabled>No partners in data</DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
           </div>
         </div>
 

@@ -109,6 +109,88 @@ export type Database = {
           },
         ]
       }
+      insurer_billing_data: {
+        Row: {
+          id: string
+          company_id: string
+          billing_date: string | null
+          reference_number: string | null
+          insurer: string | null
+          amount: string | null
+          policy_number: string | null
+          description: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          billing_date?: string | null
+          reference_number?: string | null
+          insurer?: string | null
+          amount?: string | null
+          policy_number?: string | null
+          description?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          billing_date?: string | null
+          reference_number?: string | null
+          insurer?: string | null
+          amount?: string | null
+          policy_number?: string | null
+          description?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurer_billing_data_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ocr_data: {
+        Row: {
+          id: string
+          company_id: string
+          document_reference: string | null
+          extracted_text: string | null
+          source_filename: string | null
+          raw_data: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          document_reference?: string | null
+          extracted_text?: string | null
+          source_filename?: string | null
+          raw_data?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          document_reference?: string | null
+          extracted_text?: string | null
+          source_filename?: string | null
+          raw_data?: Json | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ocr_data_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           id: string

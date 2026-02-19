@@ -7,10 +7,15 @@ import { WORKFLOWS } from "@/features/layout/presentation/ProjectPanel";
  */
 export default function WorkflowDefaultPage() {
   const { workflowId } = useParams<{ workflowId: string }>();
-  if (!workflowId) return null;
+  const workflow = workflowId ? WORKFLOWS[workflowId] : undefined;
 
-  const workflow = WORKFLOWS[workflowId];
-  if (!workflow) return null;
+  if (!workflowId || !workflow) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Workflow not found.</p>
+      </div>
+    );
+  }
 
   if (workflow.projects.length > 0) {
     return (
