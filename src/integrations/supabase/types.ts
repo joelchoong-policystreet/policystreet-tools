@@ -65,6 +65,7 @@ export type Database = {
         Row: {
           account_no: string | null
           agent_code: string | null
+          project: string | null
           amount_payable: number | null
           chassis: string | null
           class_product: string | null
@@ -116,6 +117,7 @@ export type Database = {
           cn_no?: string | null
           commission?: number | null
           company_id: string
+          project?: string | null
           coverage_type?: string | null
           created_at?: string
           effective_date?: string | null
@@ -160,6 +162,7 @@ export type Database = {
           cn_no?: string | null
           commission?: number | null
           company_id?: string
+          project?: string | null
           coverage_type?: string | null
           created_at?: string
           effective_date?: string | null
@@ -290,6 +293,7 @@ export type Database = {
           raw_data: Json
           rejection_reason: string
           source: string
+          workflow: string | null
         }
         Insert: {
           company_id: string
@@ -297,6 +301,7 @@ export type Database = {
           raw_data: Json
           rejection_reason: string
           source: string
+          workflow?: string | null
         }
         Update: {
           company_id?: string
@@ -304,6 +309,7 @@ export type Database = {
           raw_data?: Json
           rejection_reason?: string
           source?: string
+          workflow?: string | null
         }
         Relationships: [
           {

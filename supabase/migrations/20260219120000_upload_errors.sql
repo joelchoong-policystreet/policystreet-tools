@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS public.upload_errors (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES public.companies(id),
   source TEXT NOT NULL,
+  workflow TEXT,
   raw_data JSONB NOT NULL,
   rejection_reason TEXT NOT NULL,
   file_name TEXT,
@@ -26,4 +27,5 @@ CREATE POLICY "Upload errors deletable by authenticated users"
 
 CREATE INDEX idx_upload_errors_company ON public.upload_errors(company_id);
 CREATE INDEX idx_upload_errors_source ON public.upload_errors(source);
+CREATE INDEX idx_upload_errors_workflow ON public.upload_errors(workflow);
 CREATE INDEX idx_upload_errors_created_at ON public.upload_errors(created_at DESC);

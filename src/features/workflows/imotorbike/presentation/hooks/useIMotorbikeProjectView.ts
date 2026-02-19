@@ -44,12 +44,19 @@ function getAfter6PMCount(rows: IMotorbikeRow[]): number {
   }).length;
 }
 
-async function fetchIMotorbikeCompany(): Promise<{ id: string; name: string } | null> {
+const PROJECT_COMPANY_NAMES: Record<string, string> = {
+  imotorbike: "iMotorbike",
+  carsome: "Carsome",
+};
+
+async function fetchCompanyForProject(projectId: string): Promise<{ id: string; name: string } | null> {
+  const companyName = PROJECT_COMPANY_NAMES[projectId];
+  if (!companyName) return null;
   try {
     const { data, error } = await supabase
       .from("companies")
       .select("id, name")
-      .ilike("name", "iMotorbike")
+      .ilike("name", companyName)
       .limit(1)
       .maybeSingle();
     if (error) return null;
@@ -59,15 +66,23 @@ async function fetchIMotorbikeCompany(): Promise<{ id: string; name: string } | 
   }
 }
 
-async function fetchInsurerBillingForCompany(companyId: string): Promise<InsurerBillingRow[]> {
+async function fetchInsurerBillingForProject(
+  companyId: string,
+  projectId: string
+): Promise<InsurerBillingRow[]> {
   try {
+    const filter =
+      projectId === "imotorbike"
+        ? "project.eq.imotorbike,project.is.null"
+        : `project.eq.${projectId}`;
     const { data, error } = await supabase
       .from("insurer_billing_data")
       .select("*")
       .eq("company_id", companyId)
+      .or(filter)
       .order("issue_date", { ascending: true, nullsFirst: false });
     if (error) return [];
-    return data ?? [];
+    return (data ?? []) as InsurerBillingRow[];
   } catch {
     return [];
   }
@@ -87,12 +102,16 @@ async function fetchOcrForCompany(companyId: string): Promise<OcrRow[]> {
   }
 }
 
-async function fetchUploadErrorsForCompany(companyId: string): Promise<UploadErrorRow[]> {
+async function fetchUploadErrorsForProject(
+  companyId: string,
+  projectId: string
+): Promise<UploadErrorRow[]> {
   try {
     const { data, error } = await supabase
       .from("upload_errors")
       .select("*")
       .eq("company_id", companyId)
+      .eq("workflow", projectId)
       .order("created_at", { ascending: false });
     if (error) return [];
     return data ?? [];
@@ -126,29 +145,29 @@ export function useIMotorbikeProjectView() {
   const ocrFileInputRef = useRef<HTMLInputElement>(null);
   const billingUploadInsurerRef = useRef<string | null>(null);
 
-  const { data: iMotorbikeCompany } = useQuery({
-    queryKey: ["company-imotorbike"],
-    queryFn: fetchIMotorbikeCompany,
-    enabled: projectId === "imotorbike",
+  const { data: projectCompany } = useQuery({
+    queryKey: ["company-project", projectId],
+    queryFn: () => fetchCompanyForProject(projectId!),
+    enabled: !!projectId,
   });
-  const companyId = iMotorbikeCompany?.id ?? null;
+  const companyId = projectCompany?.id ?? null;
 
   const { data: insurerBillingRows = [], isLoading: isLoadingBilling, error: errorBilling } = useQuery({
-    queryKey: ["imotorbike-insurer-billing", companyId],
-    queryFn: () => fetchInsurerBillingForCompany(companyId!),
-    enabled: activeTab === "insurer_billing" && !!companyId,
+    queryKey: ["insurer-billing", companyId, projectId],
+    queryFn: () => fetchInsurerBillingForProject(companyId!, projectId!),
+    enabled: activeTab === "insurer_billing" && !!companyId && !!projectId,
   });
 
   const { data: ocrRows = [], isLoading: isLoadingOcr, error: errorOcr } = useQuery({
-    queryKey: ["imotorbike-ocr", companyId],
+    queryKey: ["ocr", companyId, projectId],
     queryFn: () => fetchOcrForCompany(companyId!),
     enabled: activeTab === "ocr" && !!companyId,
   });
 
   const { data: uploadErrorRows = [], isLoading: isLoadingErrors, error: errorErrors } = useQuery({
-    queryKey: ["imotorbike-upload-errors", companyId],
-    queryFn: () => fetchUploadErrorsForCompany(companyId!),
-    enabled: activeTab === "errors" && !!companyId,
+    queryKey: ["upload-errors", companyId, projectId],
+    queryFn: () => fetchUploadErrorsForProject(companyId!, projectId!),
+    enabled: activeTab === "errors" && !!companyId && !!projectId,
   });
 
   useEffect(() => setCurrentPage(1), [activeTab]);
@@ -290,7 +309,8 @@ export function useIMotorbikeProjectView() {
         str.includes(q) ||
         (r.rejection_reason ?? "").toLowerCase().includes(q) ||
         (r.source ?? "").toLowerCase().includes(q) ||
-        (r.file_name ?? "").toLowerCase().includes(q)
+        (r.file_name ?? "").toLowerCase().includes(q) ||
+        (r.workflow ?? "").toLowerCase().includes(q)
       );
     });
   }, [uploadErrorRows, errorsSearchQuery]);
@@ -409,6 +429,7 @@ export function useIMotorbikeProjectView() {
         const errorInserts = rejectedRows.map((raw) => ({
           company_id: companyId,
           source: "insurer_billing",
+          workflow: projectId ?? null,
           raw_data: raw as IntTables<"upload_errors">["raw_data"],
           rejection_reason: "No valid date",
           file_name: file.name,
@@ -424,6 +445,7 @@ export function useIMotorbikeProjectView() {
 
       const toInsert: IntTablesInsert<"insurer_billing_data">[] = rowsWithDate.map((raw) => ({
         company_id: companyId,
+        project: projectId ?? null,
         insurer: get(raw, "insurer") ?? detectedInsurer,
         row_number: get(raw, "no.", "no") ?? null,
         policy_no: get(raw, "policy no.", "policy no", "policy_no") ?? null,
@@ -470,9 +492,9 @@ export function useIMotorbikeProjectView() {
         ) as IntTablesInsert<"insurer_billing_data">[];
         const { error: err } = await supabase.from("insurer_billing_data").insert(rows);
         if (err) throw err;
-        await queryClient.invalidateQueries({ queryKey: ["imotorbike-insurer-billing", companyId] });
+        await queryClient.invalidateQueries({ queryKey: ["insurer-billing", companyId, projectId] });
         if (rejectedRows.length > 0) {
-          await queryClient.invalidateQueries({ queryKey: ["imotorbike-upload-errors", companyId] });
+          await queryClient.invalidateQueries({ queryKey: ["upload-errors", companyId, projectId] });
         }
         const desc =
           skippedNoDate > 0
@@ -517,7 +539,7 @@ export function useIMotorbikeProjectView() {
       if (toInsert.length > 0) {
         const { error: err } = await supabase.from("ocr_data").insert(toInsert);
         if (err) throw err;
-        await queryClient.invalidateQueries({ queryKey: ["imotorbike-ocr", companyId] });
+        await queryClient.invalidateQueries({ queryKey: ["ocr", companyId, projectId] });
         toast({ title: "Upload successful", description: `${toInsert.length} OCR row(s) imported.` });
       }
     } finally {

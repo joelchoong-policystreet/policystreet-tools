@@ -6,6 +6,7 @@ DROP TABLE IF EXISTS public.insurer_billing_data;
 CREATE TABLE public.insurer_billing_data (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id UUID NOT NULL REFERENCES public.companies(id),
+  project TEXT,
   insurer TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
 
