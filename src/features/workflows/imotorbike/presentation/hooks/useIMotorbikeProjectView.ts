@@ -17,6 +17,12 @@ import {
   type DateRange,
 } from "@/features/workflows/imotorbike/lib/date-utils";
 
+/** Normalize date to YYYY-MM-DD for consistent matching across different formats (Issue Date, Date issue, etc.). */
+function toDateKey(value: string | null | undefined): string {
+  const s = value != null ? String(value).trim() : "";
+  return toISODateOnly(s || null) ?? "";
+}
+
 export type TabKind = "issuance" | "insurer_billing" | "ocr" | "errors";
 export type InsurerBillingRow = IntTables<"insurer_billing_data">;
 export type OcrRow = Tables<"ocr_data_table">;
@@ -93,10 +99,15 @@ async function fetchOcrForProject(
   projectId: string
 ): Promise<OcrRow[]> {
   try {
+    const projectFilter =
+      projectId === "imotorbike"
+        ? "project.eq.imotorbike,project.is.null"
+        : `project.eq.${projectId}`;
     const { data, error } = await supabase
       .from("ocr_data_table")
       .select("*")
       .eq("company_id", companyId)
+      .or(projectFilter)
       .order("created_at", { ascending: false });
     if (error) return [];
     return (data ?? []) as OcrRow[];

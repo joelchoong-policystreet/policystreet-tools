@@ -38,6 +38,10 @@ export function parseBillingDate(value: string | null): Date | null {
   if (isValid(d)) return d;
   d = parse(s, "MM/dd/yyyy", new Date());
   if (isValid(d)) return d;
+  d = parse(s, "dd-MM-yyyy", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "MM-dd-yyyy", new Date());
+  if (isValid(d)) return d;
   d = parse(s, "yyyy-MM-dd", new Date());
   if (isValid(d)) return d;
   // Generali: "15 Feb 2026", "26 Jan 2026"

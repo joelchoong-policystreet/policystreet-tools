@@ -243,19 +243,18 @@ export function InsurerBillingTabContent({
                 <TableHead>Vehicle no</TableHead>
                 <TableHead>Sum insured (RM)</TableHead>
                 <TableHead>Total amount payable (RM)</TableHead>
-                <TableHead>Description</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
                     {emptyMessage}
                   </TableCell>
                 </TableRow>
@@ -285,11 +284,6 @@ export function InsurerBillingTabContent({
                         : row.total_amount != null
                           ? Number(row.total_amount).toLocaleString()
                           : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center rounded-md bg-blue-100 px-2.5 py-0.5 text-sm font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                        Verified
-                      </span>
                     </TableCell>
                   </TableRow>
                 ))
