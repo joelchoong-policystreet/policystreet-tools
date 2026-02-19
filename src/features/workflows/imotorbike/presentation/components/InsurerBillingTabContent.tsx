@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Upload, Filter, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,6 +11,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -21,11 +30,14 @@ import { TablePagination } from "@/shared/components/TablePagination";
 import type { InsurerBillingRow } from "../hooks/useIMotorbikeProjectView";
 import type { DateRange, FilterPreset } from "@/features/workflows/imotorbike/lib/date-utils";
 
+const BILLING_UPLOAD_INSURERS = ["Allianz", "Generali"] as const;
+
 type InsurerBillingTabContentProps = {
   companyId: string | null;
   uploading: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onConfirmInsurerAndOpenFilePicker: (insurer: string) => void;
   filterLabel: string;
   filterPreset: FilterPreset;
   onFilterPresetChange: (preset: FilterPreset) => void;
@@ -52,6 +64,7 @@ export function InsurerBillingTabContent({
   uploading,
   fileInputRef,
   onFileChange,
+  onConfirmInsurerAndOpenFilePicker,
   filterLabel,
   filterPreset,
   onFilterPresetChange,
@@ -72,8 +85,60 @@ export function InsurerBillingTabContent({
   pageSize,
   onPageChange,
 }: InsurerBillingTabContentProps) {
+  const [insurerDialogOpen, setInsurerDialogOpen] = useState(false);
+  const [selectedInsurerForUpload, setSelectedInsurerForUpload] = useState<string | null>(null);
+
+  const handleUploadClick = () => {
+    setSelectedInsurerForUpload(null);
+    setInsurerDialogOpen(true);
+  };
+
+  const handleConfirmInsurer = () => {
+    if (!selectedInsurerForUpload) return;
+    onConfirmInsurerAndOpenFilePicker(selectedInsurerForUpload);
+    setInsurerDialogOpen(false);
+  };
+
   return (
     <>
+      <Dialog open={insurerDialogOpen} onOpenChange={setInsurerDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select insurer for this upload</DialogTitle>
+            <DialogDescription>
+              Choose which insurer this billing data is for. All rows in the CSV will be tagged with this insurer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-4">
+            <div className="flex flex-wrap gap-2">
+              {BILLING_UPLOAD_INSURERS.map((insurer) => (
+                <Button
+                  key={insurer}
+                  type="button"
+                  variant={selectedInsurerForUpload === insurer ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedInsurerForUpload(insurer)}
+                >
+                  {insurer}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setInsurerDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmInsurer}
+              disabled={!selectedInsurerForUpload}
+            >
+              Select file
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex flex-wrap items-center gap-4 mb-4">
         {!companyId ? (
           <p className="text-sm text-muted-foreground">Loading company…</p>
@@ -90,7 +155,7 @@ export function InsurerBillingTabContent({
               variant="outline"
               size="sm"
               disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={handleUploadClick}
             >
               <Upload className="mr-2 h-4 w-4" />
               {uploading ? "Uploading…" : "Upload CSV"}

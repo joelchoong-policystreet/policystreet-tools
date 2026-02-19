@@ -88,6 +88,10 @@ export default function ProjectIMotorbikePage() {
             uploading={view.uploading}
             fileInputRef={view.billingFileInputRef}
             onFileChange={view.handleBillingFileChange}
+            onConfirmInsurerAndOpenFilePicker={(insurer) => {
+              view.prepareBillingUpload(insurer);
+              view.billingFileInputRef.current?.click();
+            }}
             filterLabel={view.filterLabel}
             filterPreset={view.filterPreset}
             onFilterPresetChange={view.setFilterPreset}

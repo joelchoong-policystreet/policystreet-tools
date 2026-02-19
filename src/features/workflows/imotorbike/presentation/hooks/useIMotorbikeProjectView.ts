@@ -95,6 +95,7 @@ export function useIMotorbikeProjectView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const billingFileInputRef = useRef<HTMLInputElement>(null);
   const ocrFileInputRef = useRef<HTMLInputElement>(null);
+  const billingUploadInsurerRef = useRef<string | null>(null);
 
   const { data: iMotorbikeCompany } = useQuery({
     queryKey: ["company-imotorbike"],
@@ -214,9 +215,15 @@ export function useIMotorbikeProjectView() {
     e.target.value = "";
   };
 
+  const prepareBillingUpload = (insurer: string) => {
+    billingUploadInsurerRef.current = insurer;
+  };
+
   const handleBillingFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !companyId) return;
+    const insurerForUpload = billingUploadInsurerRef.current;
+    billingUploadInsurerRef.current = null;
     setUploading(true);
     try {
       const text = await file.text();
@@ -232,9 +239,10 @@ export function useIMotorbikeProjectView() {
         }
         return null;
       };
-      // Detect insurer from first data row or filename
+      // Insurer: dialog selection (insurerForUpload) takes precedence, else first row or filename
       const firstRow = parsed.data[0];
       const detectedInsurer =
+        insurerForUpload ??
         get(firstRow ?? {}, "insurer") ??
         (file.name.toLowerCase().includes("generali") ? "Generali" :
          file.name.toLowerCase().includes("allianz") ? "Allianz" : "Unknown");
@@ -284,7 +292,6 @@ export function useIMotorbikeProjectView() {
         trx_status: get(raw, "trx status", "trx_status"),
         total_amount: get(raw, "totalamt", "total_amount"),
       } as TablesInsert<"insurer_billing_data">));
-
       if (toInsert.length > 0) {
         const { error: err } = await supabase.from("insurer_billing_data").insert(toInsert);
         if (err) throw err;
@@ -367,6 +374,7 @@ export function useIMotorbikeProjectView() {
     billingFiltered,
     billingPaginated,
     billingTotalPages,
+    prepareBillingUpload,
     handleBillingFileChange,
     // OCR tab
     ocrRows,
