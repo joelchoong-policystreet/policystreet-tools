@@ -225,38 +225,58 @@ export function InsurerBillingTabContent({
                     className="flex items-center gap-1 font-medium hover:text-foreground"
                     onClick={onSortToggle}
                   >
-                    Issue date {sortAsc ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                    Created date {sortAsc ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
                   </button>
                 </TableHead>
-                <TableHead>Policy No.</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Insurer</TableHead>
+                <TableHead>Client name</TableHead>
+                <TableHead>Vehicle no</TableHead>
+                <TableHead>Sum insured (RM)</TableHead>
+                <TableHead>Total amount payable (RM)</TableHead>
+                <TableHead>Description</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
                     {emptyMessage}
                   </TableCell>
                 </TableRow>
               ) : (
                 rows.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell>{row.issue_date ?? "—"}</TableCell>
-                    <TableCell>{row.policy_no ?? "—"}</TableCell>
-                    <TableCell>{row.client_name ?? "—"}</TableCell>
                     <TableCell>
-                      {row.amount_payable != null ? row.amount_payable : row.gross_premium != null ? row.gross_premium : "—"}
+                      {row.created_at
+                        ? new Date(row.created_at).toLocaleDateString(undefined, {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })
+                        : "—"}
                     </TableCell>
-                    <TableCell>{row.insurer ?? "—"}</TableCell>
+                    <TableCell>{row.client_name ?? "—"}</TableCell>
+                    <TableCell>{row.vehicle_no ?? "—"}</TableCell>
+                    <TableCell>
+                      {row.sum_insured != null ? Number(row.sum_insured).toLocaleString() : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {row.amount_payable != null
+                        ? Number(row.amount_payable).toLocaleString()
+                        : row.total_amount != null
+                          ? Number(row.total_amount).toLocaleString()
+                          : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center rounded-md bg-blue-100 px-2.5 py-0.5 text-sm font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                        Verified
+                      </span>
+                    </TableCell>
                   </TableRow>
                 ))
               )}

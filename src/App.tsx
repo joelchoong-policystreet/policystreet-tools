@@ -85,7 +85,12 @@ const App = () => (
 
 function LoginGuard() {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading)
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
+        Loading…
+      </div>
+    );
   if (user) return <Navigate to="/" replace />;
   return <LoginPage />;
 }

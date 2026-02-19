@@ -164,7 +164,10 @@ export function useIMotorbikeProjectView() {
   const totalIssuances = filteredRows.length;
 
   const billingDateFiltered = useMemo(
-    () => filterByDateRange(insurerBillingRows, filterPreset, customRange, (r) => parseBillingDate(r.issue_date)),
+    () =>
+      filterByDateRange(insurerBillingRows, filterPreset, customRange, (r) =>
+        r.created_at ? new Date(r.created_at) : null
+      ),
     [insurerBillingRows, filterPreset, customRange]
   );
 
@@ -183,8 +186,8 @@ export function useIMotorbikeProjectView() {
     let filtered = billingDateFiltered;
     if (selectedInsurerBilling) filtered = filtered.filter((r) => r.insurer === selectedInsurerBilling);
     return [...filtered].sort((a, b) => {
-      const da = parseBillingDate(a.issue_date)?.getTime() ?? 0;
-      const db = parseBillingDate(b.issue_date)?.getTime() ?? 0;
+      const da = new Date(a.created_at).getTime();
+      const db = new Date(b.created_at).getTime();
       return sortAsc ? da - db : db - da;
     });
   }, [billingDateFiltered, selectedInsurerBilling, sortAsc]);
