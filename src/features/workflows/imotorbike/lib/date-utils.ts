@@ -6,6 +6,7 @@ import {
   parseISO,
   parse,
   isValid,
+  format,
   type Interval,
 } from "date-fns";
 
@@ -38,6 +39,12 @@ export function parseBillingDate(value: string | null): Date | null {
   d = parse(s, "yyyy-MM-dd", new Date());
   if (isValid(d)) return d;
   return null;
+}
+
+/** Parse a date string and return YYYY-MM-DD for DB DATE columns, or null. */
+export function toISODateOnly(value: string | null): string | null {
+  const d = parseBillingDate(value);
+  return d ? format(d, "yyyy-MM-dd") : null;
 }
 
 export function filterByDateRange<T>(

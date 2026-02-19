@@ -103,6 +103,7 @@ export default function ProjectIMotorbikePage() {
             rows={view.billingPaginated}
             isLoading={view.isLoadingBilling}
             error={view.errorBilling as Error | null}
+            uploadError={view.billingUploadError}
             totalItems={view.billingFiltered.length}
             emptyMessage={billingEmptyMessage}
             sortAsc={view.sortAsc}

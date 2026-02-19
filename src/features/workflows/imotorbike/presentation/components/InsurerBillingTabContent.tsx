@@ -49,6 +49,7 @@ type InsurerBillingTabContentProps = {
   rows: InsurerBillingRow[];
   isLoading: boolean;
   error: Error | null;
+  uploadError: string | null;
   totalItems: number;
   emptyMessage: string;
   sortAsc: boolean;
@@ -76,6 +77,7 @@ export function InsurerBillingTabContent({
   rows,
   isLoading,
   error,
+  uploadError,
   totalItems,
   emptyMessage,
   sortAsc,
@@ -208,8 +210,10 @@ export function InsurerBillingTabContent({
         </DropdownMenu>
       </div>
       <Card>
-        {error && (
-          <div className="p-4 text-sm text-destructive border-b">Failed to load: {error.message}</div>
+        {(error || uploadError) && (
+          <div className="p-4 text-sm text-destructive border-b">
+            {uploadError ?? (error ? `Failed to load: ${error.message}` : null)}
+          </div>
         )}
         <div className="overflow-x-auto">
           <Table>
@@ -221,38 +225,38 @@ export function InsurerBillingTabContent({
                     className="flex items-center gap-1 font-medium hover:text-foreground"
                     onClick={onSortToggle}
                   >
-                    Billing Date {sortAsc ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                    Issue date {sortAsc ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
                   </button>
                 </TableHead>
-                <TableHead>Reference</TableHead>
-                <TableHead>Insurer</TableHead>
-                <TableHead>Amount</TableHead>
                 <TableHead>Policy No.</TableHead>
-                <TableHead>Description</TableHead>
+                <TableHead>Client</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Insurer</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
                     {emptyMessage}
                   </TableCell>
                 </TableRow>
               ) : (
                 rows.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell>{row.billing_date ?? "—"}</TableCell>
-                    <TableCell>{row.reference_number ?? "—"}</TableCell>
+                    <TableCell>{row.issue_date ?? "—"}</TableCell>
+                    <TableCell>{row.policy_no ?? "—"}</TableCell>
+                    <TableCell>{row.client_name ?? "—"}</TableCell>
+                    <TableCell>
+                      {row.amount_payable != null ? row.amount_payable : row.gross_premium != null ? row.gross_premium : "—"}
+                    </TableCell>
                     <TableCell>{row.insurer ?? "—"}</TableCell>
-                    <TableCell>{row.amount ?? "—"}</TableCell>
-                    <TableCell>{row.policy_number ?? "—"}</TableCell>
-                    <TableCell>{row.description ?? "—"}</TableCell>
                   </TableRow>
                 ))
               )}

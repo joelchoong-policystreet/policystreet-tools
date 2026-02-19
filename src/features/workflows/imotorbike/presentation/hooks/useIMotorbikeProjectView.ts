@@ -4,10 +4,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Papa from "papaparse";
 import { supabase } from "@/data/supabase/client";
 import type { Tables, TablesInsert } from "@/data/supabase/types";
+import type { Tables as IntTables, TablesInsert as IntTablesInsert } from "@/integrations/supabase/types";
 import { parseIMotorbikeCSV, type IMotorbikeRow } from "@/lib/imotorbike-csv";
 import {
   parsePurchasedDateTime,
   parseBillingDate,
+  toISODateOnly,
   filterByDateRange,
   getFilterLabel,
   type FilterPreset,
@@ -15,8 +17,14 @@ import {
 } from "@/features/workflows/imotorbike/lib/date-utils";
 
 export type TabKind = "issuance" | "insurer_billing" | "ocr";
-export type InsurerBillingRow = Tables<"insurer_billing_data">;
+export type InsurerBillingRow = IntTables<"insurer_billing_data">;
 export type OcrRow = Tables<"ocr_data">;
+
+function parseNumeric(s: string | null): number | null {
+  if (s == null || String(s).trim() === "") return null;
+  const n = parseFloat(String(s).replace(/,/g, "").trim());
+  return Number.isNaN(n) ? null : n;
+}
 
 const PAGE_SIZE = 50;
 
@@ -55,7 +63,7 @@ async function fetchInsurerBillingForCompany(companyId: string): Promise<Insurer
       .from("insurer_billing_data")
       .select("*")
       .eq("company_id", companyId)
-      .order("billing_date", { ascending: true, nullsFirst: false });
+      .order("issue_date", { ascending: true, nullsFirst: false });
     if (error) return [];
     return data ?? [];
   } catch {
@@ -91,6 +99,7 @@ export function useIMotorbikeProjectView() {
   const [sortAsc, setSortAsc] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [uploading, setUploading] = useState(false);
+  const [billingUploadError, setBillingUploadError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const billingFileInputRef = useRef<HTMLInputElement>(null);
@@ -155,7 +164,7 @@ export function useIMotorbikeProjectView() {
   const totalIssuances = filteredRows.length;
 
   const billingDateFiltered = useMemo(
-    () => filterByDateRange(insurerBillingRows, filterPreset, customRange, (r) => parseBillingDate(r.billing_date)),
+    () => filterByDateRange(insurerBillingRows, filterPreset, customRange, (r) => parseBillingDate(r.issue_date)),
     [insurerBillingRows, filterPreset, customRange]
   );
 
@@ -174,8 +183,8 @@ export function useIMotorbikeProjectView() {
     let filtered = billingDateFiltered;
     if (selectedInsurerBilling) filtered = filtered.filter((r) => r.insurer === selectedInsurerBilling);
     return [...filtered].sort((a, b) => {
-      const da = parseBillingDate(a.billing_date)?.getTime() ?? 0;
-      const db = parseBillingDate(b.billing_date)?.getTime() ?? 0;
+      const da = parseBillingDate(a.issue_date)?.getTime() ?? 0;
+      const db = parseBillingDate(b.issue_date)?.getTime() ?? 0;
       return sortAsc ? da - db : db - da;
     });
   }, [billingDateFiltered, selectedInsurerBilling, sortAsc]);
@@ -216,6 +225,7 @@ export function useIMotorbikeProjectView() {
   };
 
   const prepareBillingUpload = (insurer: string) => {
+    setBillingUploadError(null);
     billingUploadInsurerRef.current = insurer;
   };
 
@@ -224,11 +234,11 @@ export function useIMotorbikeProjectView() {
     if (!file || !companyId) return;
     const insurerForUpload = billingUploadInsurerRef.current;
     billingUploadInsurerRef.current = null;
+    setBillingUploadError(null);
     setUploading(true);
     try {
       const text = await file.text();
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-      // Build a lookup: lowercase-trimmed header → original header
       const headers = parsed.meta.fields ?? [];
       const headerMap = new Map<string, string>();
       headers.forEach((h) => headerMap.set(h.toLowerCase().trim(), h));
@@ -239,7 +249,6 @@ export function useIMotorbikeProjectView() {
         }
         return null;
       };
-      // Insurer: dialog selection (insurerForUpload) takes precedence, else first row or filename
       const firstRow = parsed.data[0];
       const detectedInsurer =
         insurerForUpload ??
@@ -247,56 +256,55 @@ export function useIMotorbikeProjectView() {
         (file.name.toLowerCase().includes("generali") ? "Generali" :
          file.name.toLowerCase().includes("allianz") ? "Allianz" : "Unknown");
 
-      const toInsert = (parsed.data ?? []).map((raw) => ({
+      const toInsert: IntTablesInsert<"insurer_billing_data">[] = (parsed.data ?? []).map((raw) => ({
         company_id: companyId,
         insurer: get(raw, "insurer") ?? detectedInsurer,
-        // Shared
-        row_number: get(raw, "no.", "no"),
-        policy_no: get(raw, "policy no.", "policy no", "policy_no"),
-        client_name: get(raw, "name of insured", "client", "client_name"),
-        vehicle_no: get(raw, "vehicle no", "vehicle no.", "vehicle_no"),
-        status: get(raw, "status"),
-        sum_insured: get(raw, "sum insured (rm)", "sum insured", "sum_insured"),
-        // Allianz
-        cn_no: get(raw, "c/n no.", "c/n no", "cn_no"),
-        account_no: get(raw, "account no.", "account no", "account_no"),
-        issue_date: get(raw, "issue date", "issue_date"),
-        issued_by: get(raw, "issued by", "issued_by"),
-        type: get(raw, "type"),
-        effective_date: get(raw, "effective date", "effective_date"),
-        expiry_date: get(raw, "expiry date", "expiry_date"),
-        vehicle_type: get(raw, "vehicle type", "vehicle_type"),
-        coverage_type: get(raw, "coverage type", "coverage_type"),
-        chassis: get(raw, "chassis"),
-        jpj_status: get(raw, "jpj status", "jpj_status"),
-        gross_premium: get(raw, "gross premium (rm)", "gross premium", "gross_premium"),
-        rebate: get(raw, "rebate (rm)", "rebate"),
-        gst: get(raw, "gst (rm)", "gst"),
-        service_tax: get(raw, "serv. tax (rm)", "serv. tax", "service_tax"),
-        stamp: get(raw, "stamp (rm)", "stamp"),
-        premium_due: get(raw, "premium due (rm)", "premium due", "premium_due"),
-        commission: get(raw, "commission (rm)", "commission"),
-        gst_commission: get(raw, "gst commission (rm)", "gst commission", "gst_commission"),
-        nett_premium: get(raw, "nett premium (rm)", "nett premium", "nett_premium"),
-        amount_payable: get(raw, "amount payable (rounded) (rm)", "amount payable", "amount_payable"),
-        ptv_amount: get(raw, "ptv amount", "ptv_amount"),
-        premium_due_after_ptv: get(raw, "premium due after ptv", "premium_due_after_ptv"),
-        // Generali
-        agent_code: get(raw, "agent code", "agent_code"),
-        user_id: get(raw, "userid", "user_id"),
-        transaction_date: get(raw, "date"),
-        transaction_time: get(raw, "time"),
-        class_product: get(raw, "class & product", "class_product"),
-        quotation: get(raw, "quotation"),
-        repl_prev_no: get(raw, "repl/prev no.", "repl/prev no", "repl_prev_no"),
-        trx_status: get(raw, "trx status", "trx_status"),
-        total_amount: get(raw, "totalamt", "total_amount"),
-      } as TablesInsert<"insurer_billing_data">));
+        row_number: get(raw, "no.", "no") ?? null,
+        policy_no: get(raw, "policy no.", "policy no", "policy_no") ?? null,
+        client_name: get(raw, "name of insured", "client", "client_name") ?? null,
+        vehicle_no: get(raw, "vehicle no", "vehicle no.", "vehicle_no") ?? null,
+        status: get(raw, "status") ?? null,
+        sum_insured: parseNumeric(get(raw, "sum insured (rm)", "sum insured", "sum_insured")),
+        cn_no: get(raw, "c/n no.", "c/n no", "cn_no") ?? null,
+        account_no: get(raw, "account no.", "account no", "account_no") ?? null,
+        issue_date: toISODateOnly(get(raw, "issue date", "issue_date")),
+        issued_by: get(raw, "issued by", "issued_by") ?? null,
+        type: get(raw, "type") ?? null,
+        effective_date: toISODateOnly(get(raw, "effective date", "effective_date")),
+        expiry_date: toISODateOnly(get(raw, "expiry date", "expiry_date")),
+        vehicle_type: get(raw, "vehicle type", "vehicle_type") ?? null,
+        coverage_type: get(raw, "coverage type", "coverage_type") ?? null,
+        chassis: get(raw, "chassis") ?? null,
+        jpj_status: get(raw, "jpj status", "jpj_status") ?? null,
+        gross_premium: parseNumeric(get(raw, "gross premium (rm)", "gross premium", "gross_premium")),
+        rebate: parseNumeric(get(raw, "rebate (rm)", "rebate")),
+        gst: parseNumeric(get(raw, "gst (rm)", "gst")),
+        service_tax: parseNumeric(get(raw, "serv. tax (rm)", "serv. tax", "service_tax")),
+        stamp: parseNumeric(get(raw, "stamp (rm)", "stamp")),
+        premium_due: parseNumeric(get(raw, "premium due (rm)", "premium due", "premium_due")),
+        commission: parseNumeric(get(raw, "commission (rm)", "commission")),
+        gst_commission: parseNumeric(get(raw, "gst commission (rm)", "gst commission", "gst_commission")),
+        nett_premium: parseNumeric(get(raw, "nett premium (rm)", "nett premium", "nett_premium")),
+        amount_payable: parseNumeric(get(raw, "amount payable (rounded) (rm)", "amount payable", "amount_payable")),
+        ptv_amount: parseNumeric(get(raw, "ptv amount", "ptv_amount")),
+        premium_due_after_ptv: parseNumeric(get(raw, "premium due after ptv", "premium_due_after_ptv")),
+        agent_code: get(raw, "agent code", "agent_code") ?? null,
+        user_id: get(raw, "userid", "user_id") ?? null,
+        transaction_date: toISODateOnly(get(raw, "date")),
+        transaction_time: get(raw, "time") ?? null,
+        class_product: get(raw, "class & product", "class_product") ?? null,
+        quotation: get(raw, "quotation") ?? null,
+        repl_prev_no: get(raw, "repl/prev no.", "repl/prev no", "repl_prev_no") ?? null,
+        trx_status: get(raw, "trx status", "trx_status") ?? null,
+        total_amount: parseNumeric(get(raw, "totalamt", "total_amount")),
+      }));
       if (toInsert.length > 0) {
         const { error: err } = await supabase.from("insurer_billing_data").insert(toInsert);
         if (err) throw err;
         await queryClient.invalidateQueries({ queryKey: ["imotorbike-insurer-billing", companyId] });
       }
+    } catch (err) {
+      setBillingUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -370,6 +378,7 @@ export function useIMotorbikeProjectView() {
     insurerBillingRows,
     isLoadingBilling,
     errorBilling,
+    billingUploadError,
     billingInsurerOptions,
     billingFiltered,
     billingPaginated,
