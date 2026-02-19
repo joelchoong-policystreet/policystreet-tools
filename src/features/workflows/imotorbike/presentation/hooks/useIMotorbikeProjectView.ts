@@ -163,11 +163,13 @@ export function useIMotorbikeProjectView() {
   const after6PM = useMemo(() => getAfter6PMCount(filteredRows), [filteredRows]);
   const totalIssuances = filteredRows.length;
 
+  const getBillingIssueDate = (r: InsurerBillingRow): Date | null => {
+    const d = r.issue_date ?? r.transaction_date;
+    return d ? new Date(d) : null;
+  };
+
   const billingDateFiltered = useMemo(
-    () =>
-      filterByDateRange(insurerBillingRows, filterPreset, customRange, (r) =>
-        r.created_at ? new Date(r.created_at) : null
-      ),
+    () => filterByDateRange(insurerBillingRows, filterPreset, customRange, getBillingIssueDate),
     [insurerBillingRows, filterPreset, customRange]
   );
 
@@ -186,8 +188,8 @@ export function useIMotorbikeProjectView() {
     let filtered = billingDateFiltered;
     if (selectedInsurerBilling) filtered = filtered.filter((r) => r.insurer === selectedInsurerBilling);
     return [...filtered].sort((a, b) => {
-      const da = new Date(a.created_at).getTime();
-      const db = new Date(b.created_at).getTime();
+      const da = getBillingIssueDate(a)?.getTime() ?? 0;
+      const db = getBillingIssueDate(b)?.getTime() ?? 0;
       return sortAsc ? da - db : db - da;
     });
   }, [billingDateFiltered, selectedInsurerBilling, sortAsc]);
@@ -274,6 +276,18 @@ export function useIMotorbikeProjectView() {
         }
         return null;
       };
+      const getDateForIssue = (raw: Record<string, string>) => {
+        const v = get(raw, "issue date", "issue_date", "date");
+        if (v !== null) return v;
+        for (const h of headers) {
+          const n = norm(h);
+          if (n === "date" || (n.includes("issue") && n.includes("date"))) {
+            const val = raw[h];
+            if (val !== undefined && val !== null && String(val).trim() !== "") return String(val).trim();
+          }
+        }
+        return null;
+      };
       const dataRows = (parsed.data ?? []).filter(
         (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
       );
@@ -295,7 +309,7 @@ export function useIMotorbikeProjectView() {
         sum_insured: parseNumeric(getSumInsured(raw)),
         cn_no: get(raw, "c/n no.", "c/n no", "cn_no") ?? null,
         account_no: get(raw, "account no.", "account no", "account_no") ?? null,
-        issue_date: toISODateOnly(get(raw, "issue date", "issue_date")),
+        issue_date: toISODateOnly(getDateForIssue(raw)),
         issued_by: get(raw, "issued by", "issued_by") ?? null,
         type: get(raw, "type") ?? null,
         effective_date: toISODateOnly(get(raw, "effective date", "effective_date")),
@@ -318,7 +332,7 @@ export function useIMotorbikeProjectView() {
         premium_due_after_ptv: parseNumeric(get(raw, "premium due after ptv", "premium_due_after_ptv")),
         agent_code: get(raw, "agent code", "agent_code") ?? null,
         user_id: get(raw, "userid", "user_id") ?? null,
-        transaction_date: toISODateOnly(get(raw, "date")),
+        transaction_date: toISODateOnly(getDateForIssue(raw)),
         transaction_time: get(raw, "time") ?? null,
         class_product: get(raw, "class & product", "class_product") ?? null,
         quotation: get(raw, "quotation") ?? null,

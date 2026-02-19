@@ -225,7 +225,7 @@ export function InsurerBillingTabContent({
                     className="flex items-center gap-1 font-medium hover:text-foreground"
                     onClick={onSortToggle}
                   >
-                    Created date {sortAsc ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                    Issue date {sortAsc ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
                   </button>
                 </TableHead>
                 <TableHead>Client name</TableHead>
@@ -252,13 +252,16 @@ export function InsurerBillingTabContent({
                 rows.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell>
-                      {row.created_at
-                        ? new Date(row.created_at).toLocaleDateString(undefined, {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })
-                        : "—"}
+                      {(() => {
+                        const d = row.issue_date ?? row.transaction_date;
+                        return d
+                          ? new Date(d).toLocaleDateString(undefined, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "—";
+                      })()}
                     </TableCell>
                     <TableCell>{row.client_name ?? "—"}</TableCell>
                     <TableCell>{row.vehicle_no ?? "—"}</TableCell>
