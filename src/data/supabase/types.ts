@@ -153,7 +153,7 @@ export type Database = {
           },
         ]
       }
-      ocr_data: {
+      ocr_data_table: {
         Row: {
           id: string
           company_id: string
@@ -183,7 +183,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ocr_data_company_id_fkey"
+            foreignKeyName: "ocr_data_table_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"

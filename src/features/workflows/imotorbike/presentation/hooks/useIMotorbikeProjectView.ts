@@ -19,7 +19,7 @@ import {
 
 export type TabKind = "issuance" | "insurer_billing" | "ocr" | "errors";
 export type InsurerBillingRow = IntTables<"insurer_billing_data">;
-export type OcrRow = Tables<"ocr_data">;
+export type OcrRow = Tables<"ocr_data_table">;
 export type UploadErrorRow = IntTables<"upload_errors">;
 
 function parseNumeric(s: string | null): number | null {
@@ -91,7 +91,7 @@ async function fetchInsurerBillingForProject(
 async function fetchOcrForCompany(companyId: string): Promise<OcrRow[]> {
   try {
     const { data, error } = await supabase
-      .from("ocr_data")
+      .from("ocr_data_table")
       .select("*")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false });
@@ -534,10 +534,10 @@ export function useIMotorbikeProjectView() {
           document_reference: get(["document_reference", "ref", "id"]) ?? null,
           extracted_text: get(["extracted_text", "extracted text", "text", "content"]) ?? null,
           source_filename: get(["source_filename", "filename", "file"]) ?? file.name ?? null,
-        } as TablesInsert<"ocr_data">;
+        } as TablesInsert<"ocr_data_table">;
       });
       if (toInsert.length > 0) {
-        const { error: err } = await supabase.from("ocr_data").insert(toInsert);
+        const { error: err } = await supabase.from("ocr_data_table").insert(toInsert);
         if (err) throw err;
         await queryClient.invalidateQueries({ queryKey: ["ocr", companyId, projectId] });
         toast({ title: "Upload successful", description: `${toInsert.length} OCR row(s) imported.` });
