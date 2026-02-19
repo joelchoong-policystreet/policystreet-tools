@@ -88,7 +88,10 @@ async function fetchInsurerBillingForProject(
   }
 }
 
-async function fetchOcrForCompany(companyId: string): Promise<OcrRow[]> {
+async function fetchOcrForProject(
+  companyId: string,
+  projectId: string
+): Promise<OcrRow[]> {
   try {
     const { data, error } = await supabase
       .from("ocr_data_table")
@@ -96,7 +99,7 @@ async function fetchOcrForCompany(companyId: string): Promise<OcrRow[]> {
       .eq("company_id", companyId)
       .order("created_at", { ascending: false });
     if (error) return [];
-    return data ?? [];
+    return (data ?? []) as OcrRow[];
   } catch {
     return [];
   }
@@ -160,8 +163,8 @@ export function useIMotorbikeProjectView() {
 
   const { data: ocrRows = [], isLoading: isLoadingOcr, error: errorOcr } = useQuery({
     queryKey: ["ocr", companyId, projectId],
-    queryFn: () => fetchOcrForCompany(companyId!),
-    enabled: activeTab === "ocr" && !!companyId,
+    queryFn: () => fetchOcrForProject(companyId!, projectId!),
+    enabled: activeTab === "ocr" && !!companyId && !!projectId,
   });
 
   const { data: uploadErrorRows = [], isLoading: isLoadingErrors, error: errorErrors } = useQuery({
@@ -518,7 +521,7 @@ export function useIMotorbikeProjectView() {
 
   const handleOcrFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !companyId) return;
+    if (!file || !companyId || !projectId) return;
     setUploading(true);
     try {
       const text = await file.text();
@@ -540,9 +543,13 @@ export function useIMotorbikeProjectView() {
       const ocrDataRows = (parsed.data ?? []).filter(
         (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
       );
-      const toInsert = ocrDataRows.map((raw) => {
-        const docRef = get(raw, "document_reference", "ref", "id", "vehicle_no", "vehicle no");
-        const filename = get(raw, "source_filename", "filename", "file_name", "file");
+      const toInsert = ocrDataRows.map((raw, idx) => {
+        let docRef = get(raw, "document_reference", "ref", "id", "vehicle_no", "vehicle no");
+        const filename = get(raw, "source_filename", "filename", "file_name", "file") ?? file.name;
+        if (!docRef && filename) {
+          const match = filename.match(/\b([A-Z]{2,3}\d{4,})\b/i) ?? filename.match(/[-_]?(\w+)(?:\.\w+)?$/);
+          docRef = match ? match[1] : null;
+        }
         let extractedText = get(raw, "extracted_text", "extracted text", "text", "content");
         if (!extractedText) {
           const parts = [
@@ -555,9 +562,10 @@ export function useIMotorbikeProjectView() {
         }
         return {
           company_id: companyId,
-          document_reference: docRef,
+          project: projectId ?? null,
+          document_reference: docRef ?? `row-${idx + 1}`,
           extracted_text: extractedText,
-          source_filename: filename ?? file.name,
+          source_filename: filename,
         } as TablesInsert<"ocr_data_table">;
       });
       if (toInsert.length > 0) {

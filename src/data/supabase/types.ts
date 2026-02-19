@@ -157,6 +157,7 @@ export type Database = {
         Row: {
           id: string
           company_id: string
+          project: string | null
           document_reference: string | null
           extracted_text: string | null
           source_filename: string | null
@@ -166,6 +167,7 @@ export type Database = {
         Insert: {
           id?: string
           company_id: string
+          project?: string | null
           document_reference?: string | null
           extracted_text?: string | null
           source_filename?: string | null
@@ -175,6 +177,7 @@ export type Database = {
         Update: {
           id?: string
           company_id?: string
+          project?: string | null
           document_reference?: string | null
           extracted_text?: string | null
           source_filename?: string | null
