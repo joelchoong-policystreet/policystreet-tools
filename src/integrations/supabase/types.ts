@@ -207,6 +207,93 @@ export type Database = {
           },
         ]
       }
+      imotorbike_billing_normalised: {
+        Row: {
+          id: string
+          billing_id: string
+          company_id: string
+          project: string | null
+          created_at: string
+          updated_at: string
+          issue_date: string
+          client_name: string | null
+          vehicle_no: string | null
+          sum_insured: number | null
+          total_amount_payable: string | null
+          ic: string | null
+          contact_no: string | null
+          email: string | null
+          vehicle_make_model: string | null
+          type_of_cover: string | null
+          premium: string | null
+          ncd: string | null
+          total_base_premium: string | null
+          total_extra_coverage: string | null
+          gross_premium: string | null
+          service_tax: string | null
+          stamp_duty: string | null
+        }
+        Insert: {
+          billing_id: string
+          company_id: string
+          project?: string | null
+          issue_date: string
+          client_name?: string | null
+          vehicle_no?: string | null
+          sum_insured?: number | null
+          total_amount_payable?: string | null
+          ic?: string | null
+          contact_no?: string | null
+          email?: string | null
+          vehicle_make_model?: string | null
+          type_of_cover?: string | null
+          premium?: string | null
+          ncd?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          gross_premium?: string | null
+          service_tax?: string | null
+          stamp_duty?: string | null
+        }
+        Update: {
+          billing_id?: string
+          company_id?: string
+          project?: string | null
+          issue_date?: string
+          client_name?: string | null
+          vehicle_no?: string | null
+          sum_insured?: number | null
+          total_amount_payable?: string | null
+          ic?: string | null
+          contact_no?: string | null
+          email?: string | null
+          vehicle_make_model?: string | null
+          type_of_cover?: string | null
+          premium?: string | null
+          ncd?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          gross_premium?: string | null
+          service_tax?: string | null
+          stamp_duty?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imotorbike_billing_normalised_billing_id_fkey"
+            columns: ["billing_id"]
+            isOneToOne: true
+            referencedRelation: "insurer_billing_data"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imotorbike_billing_normalised_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       issuances: {
         Row: {
           company_id: string
