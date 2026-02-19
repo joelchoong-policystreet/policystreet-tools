@@ -565,7 +565,9 @@ export function useIMotorbikeProjectView() {
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
       const csvToDb: Record<string, keyof IntTablesInsert<"ocr_data_table">> = {
         "date issue": "date_issue",
+        date_issue: "date_issue",
         "vehicle no": "vehicle_no",
+        vehicle_no: "vehicle_no",
         "insured name": "insured_name",
         "insured ic no": "insured_ic_no",
         "insurer contact no": "insurer_contact_no",
@@ -608,10 +610,29 @@ export function useIMotorbikeProjectView() {
       const hasInsurer = ({ row }: { row: IntTablesInsert<"ocr_data_table"> }) =>
         (row as Record<string, unknown>).insurer != null &&
         String((row as Record<string, unknown>).insurer).trim() !== "";
-      const getDedupKey = (row: IntTablesInsert<"ocr_data_table">) => {
-        const r = row as Record<string, unknown>;
-        const v = String(r.vehicle_no ?? "").trim();
-        const d = String(r.date_issue ?? "").trim();
+      const normalizeDedupPart = (s: string) =>
+        String(s)
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, " ");
+      const getVal = (obj: Record<string, unknown>, ...keys: string[]) => {
+        for (const k of keys) {
+          const val = obj[k];
+          if (val != null && String(val).trim() !== "") return String(val).trim();
+        }
+        return "";
+      };
+      const getDedupKey = (item: { row: IntTablesInsert<"ocr_data_table">; raw: Record<string, string> }) => {
+        const r = item.row as Record<string, unknown>;
+        const rawNorm = Object.fromEntries(
+          Object.entries(item.raw).map(([k, v]) => [norm(k), v])
+        ) as Record<string, string>;
+        const v = normalizeDedupPart(
+          getVal(r, "vehicle_no") || getVal(rawNorm, "vehicle no", "vehicle_no", "vehicleno")
+        );
+        const d = normalizeDedupPart(
+          getVal(r, "date_issue") || getVal(rawNorm, "date issue", "date_issue", "dateissue")
+        );
         return `${v}|${d}`;
       };
 
@@ -622,8 +643,8 @@ export function useIMotorbikeProjectView() {
         .eq("company_id", companyId)
         .eq("project", projectId);
       for (const r of existingOcr ?? []) {
-        const v = String((r as { vehicle_no?: string }).vehicle_no ?? "").trim();
-        const d = String((r as { date_issue?: string }).date_issue ?? "").trim();
+        const v = normalizeDedupPart(String((r as { vehicle_no?: string }).vehicle_no ?? ""));
+        const d = normalizeDedupPart(String((r as { date_issue?: string }).date_issue ?? ""));
         existingKeys.add(`${v}|${d}`);
       }
 
@@ -636,7 +657,7 @@ export function useIMotorbikeProjectView() {
           rejectedRows.push({ raw: item.raw, reason: "Missing insurer" });
           continue;
         }
-        const key = getDedupKey(item.row);
+        const key = getDedupKey(item);
         if (existingKeys.has(key) || seenInBatch.has(key)) {
           rejectedRows.push({ raw: item.raw, reason: "Duplicate" });
           continue;
