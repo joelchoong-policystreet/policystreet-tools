@@ -271,14 +271,17 @@ export function useIMotorbikeProjectView() {
         }
         return null;
       };
-      const firstRow = parsed.data[0];
+      const dataRows = (parsed.data ?? []).filter(
+        (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
+      );
+      const firstRow = dataRows[0];
       const detectedInsurer =
         insurerForUpload ??
         get(firstRow ?? {}, "insurer") ??
         (file.name.toLowerCase().includes("generali") ? "Generali" :
          file.name.toLowerCase().includes("allianz") ? "Allianz" : "Unknown");
 
-      const toInsert: IntTablesInsert<"insurer_billing_data">[] = (parsed.data ?? []).map((raw) => ({
+      const toInsert: IntTablesInsert<"insurer_billing_data">[] = dataRows.map((raw) => ({
         company_id: companyId,
         insurer: get(raw, "insurer") ?? detectedInsurer,
         row_number: get(raw, "no.", "no") ?? null,
@@ -349,8 +352,11 @@ export function useIMotorbikeProjectView() {
     try {
       const text = await file.text();
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+      const ocrDataRows = (parsed.data ?? []).filter(
+        (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
+      );
       const normalize = (h: string) => h?.toLowerCase().replace(/\s+/g, "_").trim() ?? "";
-      const toInsert = (parsed.data ?? []).map((raw) => {
+      const toInsert = ocrDataRows.map((raw) => {
         const get = (keys: string[]) => keys.map((k) => raw[normalize(k)] ?? raw[k]).find(Boolean);
         return {
           company_id: companyId,
