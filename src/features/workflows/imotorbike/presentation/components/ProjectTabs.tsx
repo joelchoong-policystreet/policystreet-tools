@@ -1,4 +1,4 @@
-import { BadgeCheck, DollarSign, ScanLine } from "lucide-react";
+import { BadgeCheck, DollarSign, ScanLine, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TabKind } from "../hooks/useIMotorbikeProjectView";
 
@@ -48,6 +48,19 @@ export function ProjectTabs({ activeTab, onTabChange }: ProjectTabsProps) {
       >
         <ScanLine className="h-4 w-4" />
         OCR data
+      </button>
+      <button
+        type="button"
+        onClick={() => onTabChange("errors")}
+        className={cn(
+          "inline-flex items-center gap-2 px-1 pb-2 text-sm font-medium border-b-2 transition-colors",
+          activeTab === "errors"
+            ? "border-primary text-primary"
+            : "border-transparent text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <AlertCircle className="h-4 w-4" />
+        Errors
       </button>
     </div>
   );

@@ -281,6 +281,40 @@ export type Database = {
         }
         Relationships: []
       }
+      upload_errors: {
+        Row: {
+          company_id: string
+          created_at: string
+          file_name: string | null
+          id: string
+          raw_data: Json
+          rejection_reason: string
+          source: string
+        }
+        Insert: {
+          company_id: string
+          file_name?: string | null
+          raw_data: Json
+          rejection_reason: string
+          source: string
+        }
+        Update: {
+          company_id?: string
+          file_name?: string | null
+          raw_data?: Json
+          rejection_reason?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upload_errors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string

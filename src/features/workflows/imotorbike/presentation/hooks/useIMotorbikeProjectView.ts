@@ -17,9 +17,10 @@ import {
   type DateRange,
 } from "@/features/workflows/imotorbike/lib/date-utils";
 
-export type TabKind = "issuance" | "insurer_billing" | "ocr";
+export type TabKind = "issuance" | "insurer_billing" | "ocr" | "errors";
 export type InsurerBillingRow = IntTables<"insurer_billing_data">;
 export type OcrRow = Tables<"ocr_data">;
+export type UploadErrorRow = IntTables<"upload_errors">;
 
 function parseNumeric(s: string | null): number | null {
   if (s == null || String(s).trim() === "") return null;
@@ -86,6 +87,20 @@ async function fetchOcrForCompany(companyId: string): Promise<OcrRow[]> {
   }
 }
 
+async function fetchUploadErrorsForCompany(companyId: string): Promise<UploadErrorRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from("upload_errors")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false });
+    if (error) return [];
+    return data ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export function useIMotorbikeProjectView() {
   const { workflowId, projectId } = useParams<{ workflowId: string; projectId: string }>();
   const queryClient = useQueryClient();
@@ -100,6 +115,7 @@ export function useIMotorbikeProjectView() {
   const [selectedInsurerBilling, setSelectedInsurerBilling] = useState<string | null>(null);
   const [billingSearchQuery, setBillingSearchQuery] = useState("");
   const [ocrSearchQuery, setOcrSearchQuery] = useState("");
+  const [errorsSearchQuery, setErrorsSearchQuery] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [uploading, setUploading] = useState(false);
@@ -129,8 +145,14 @@ export function useIMotorbikeProjectView() {
     enabled: activeTab === "ocr" && !!companyId,
   });
 
+  const { data: uploadErrorRows = [], isLoading: isLoadingErrors, error: errorErrors } = useQuery({
+    queryKey: ["imotorbike-upload-errors", companyId],
+    queryFn: () => fetchUploadErrorsForCompany(companyId!),
+    enabled: activeTab === "errors" && !!companyId,
+  });
+
   useEffect(() => setCurrentPage(1), [activeTab]);
-  useEffect(() => setCurrentPage(1), [searchQuery, billingSearchQuery, ocrSearchQuery]);
+  useEffect(() => setCurrentPage(1), [searchQuery, billingSearchQuery, ocrSearchQuery, errorsSearchQuery]);
 
   const dateFilteredRows = useMemo(
     () => filterByDateRange(rows, filterPreset, customRange, (r) => parsePurchasedDateTime(r.purchasedDate)),
@@ -256,6 +278,28 @@ export function useIMotorbikeProjectView() {
     return ocrSearchFiltered.slice(start, start + PAGE_SIZE);
   }, [ocrSearchFiltered, currentPage]);
 
+  const errorsSearchFiltered = useMemo(() => {
+    const q = errorsSearchQuery.trim().toLowerCase();
+    if (!q) return uploadErrorRows;
+    return uploadErrorRows.filter((r) => {
+      const raw = r.raw_data as Record<string, unknown>;
+      const str = typeof raw === "object" && raw
+        ? JSON.stringify(Object.values(raw)).toLowerCase()
+        : String(raw).toLowerCase();
+      return (
+        str.includes(q) ||
+        (r.rejection_reason ?? "").toLowerCase().includes(q) ||
+        (r.source ?? "").toLowerCase().includes(q) ||
+        (r.file_name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [uploadErrorRows, errorsSearchQuery]);
+  const errorsTotalPages = Math.max(1, Math.ceil(errorsSearchFiltered.length / PAGE_SIZE));
+  const errorsPaginated = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return errorsSearchFiltered.slice(start, start + PAGE_SIZE);
+  }, [errorsSearchFiltered, currentPage]);
+
   const filterLabel = getFilterLabel(filterPreset, customRange);
 
   const handleIssuanceFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -321,11 +365,27 @@ export function useIMotorbikeProjectView() {
         return null;
       };
       const getDateForIssue = (raw: Record<string, string>) => {
-        const v = get(raw, "issue date", "issue_date", "date");
+        const v = get(
+          raw,
+          "issue date",
+          "issue_date",
+          "date",
+          "transaction date",
+          "transaction_date",
+          "trans date",
+          "date time",
+          "datetime"
+        );
         if (v !== null) return v;
         for (const h of headers) {
           const n = norm(h);
-          if (n === "date" || (n.includes("issue") && n.includes("date"))) {
+          if (
+            n === "date" ||
+            n === "transaction_date" ||
+            (n.includes("issue") && n.includes("date")) ||
+            (n.includes("transaction") && n.includes("date")) ||
+            (n.includes("date") && n.includes("time"))
+          ) {
             const val = raw[h];
             if (val !== undefined && val !== null && String(val).trim() !== "") return String(val).trim();
           }
@@ -335,6 +395,26 @@ export function useIMotorbikeProjectView() {
       const dataRows = (parsed.data ?? []).filter(
         (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
       );
+      // Only insert rows that have a valid issue/transaction date (avoid null issue_date)
+      const rowsWithDate = dataRows.filter((raw) => {
+        const dateVal = getDateForIssue(raw);
+        return dateVal !== null && toISODateOnly(dateVal) !== null;
+      });
+      const rejectedRows = dataRows.filter((raw) => {
+        const dateVal = getDateForIssue(raw);
+        return dateVal === null || toISODateOnly(dateVal) === null;
+      });
+      const skippedNoDate = rejectedRows.length;
+      if (rejectedRows.length > 0 && companyId) {
+        const errorInserts = rejectedRows.map((raw) => ({
+          company_id: companyId,
+          source: "insurer_billing",
+          raw_data: raw as IntTables<"upload_errors">["raw_data"],
+          rejection_reason: "No valid date",
+          file_name: file.name,
+        }));
+        await supabase.from("upload_errors").insert(errorInserts);
+      }
       const firstRow = dataRows[0];
       const detectedInsurer =
         insurerForUpload ??
@@ -342,7 +422,7 @@ export function useIMotorbikeProjectView() {
         (file.name.toLowerCase().includes("generali") ? "Generali" :
          file.name.toLowerCase().includes("allianz") ? "Allianz" : "Unknown");
 
-      const toInsert: IntTablesInsert<"insurer_billing_data">[] = dataRows.map((raw) => ({
+      const toInsert: IntTablesInsert<"insurer_billing_data">[] = rowsWithDate.map((raw) => ({
         company_id: companyId,
         insurer: get(raw, "insurer") ?? detectedInsurer,
         row_number: get(raw, "no.", "no") ?? null,
@@ -391,7 +471,14 @@ export function useIMotorbikeProjectView() {
         const { error: err } = await supabase.from("insurer_billing_data").insert(rows);
         if (err) throw err;
         await queryClient.invalidateQueries({ queryKey: ["imotorbike-insurer-billing", companyId] });
-        toast({ title: "Upload successful", description: `${rows.length} billing row(s) imported.` });
+        if (rejectedRows.length > 0) {
+          await queryClient.invalidateQueries({ queryKey: ["imotorbike-upload-errors", companyId] });
+        }
+        const desc =
+          skippedNoDate > 0
+            ? `${rows.length} billing row(s) imported. ${skippedNoDate} row(s) skipped (no valid date).`
+            : `${rows.length} billing row(s) imported.`;
+        toast({ title: "Upload successful", description: desc });
       }
     } catch (err) {
       const msg =
@@ -500,5 +587,14 @@ export function useIMotorbikeProjectView() {
     ocrPaginated,
     ocrTotalPages,
     handleOcrFileChange,
+    // Errors tab
+    uploadErrorRows,
+    errorsSearchQuery,
+    setErrorsSearchQuery,
+    errorsSearchFiltered,
+    errorsPaginated,
+    errorsTotalPages,
+    isLoadingErrors,
+    errorErrors,
   };
 }

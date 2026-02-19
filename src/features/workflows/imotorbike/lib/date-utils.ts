@@ -48,6 +48,11 @@ export function parseBillingDate(value: string | null): Date | null {
   if (isValid(d)) return d;
   d = parse(s, "d-MMM-yyyy", new Date());
   if (isValid(d)) return d;
+  // Datetime: "2026-01-08 9:14:45", "2026-01-08 09:14:45"
+  d = parse(s, "yyyy-MM-dd HH:mm:ss", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "yyyy-MM-dd H:mm:ss", new Date());
+  if (isValid(d)) return d;
   return null;
 }
 

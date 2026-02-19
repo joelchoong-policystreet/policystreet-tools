@@ -8,6 +8,7 @@ import { ProjectStatsCards } from "./components/ProjectStatsCards";
 import { IssuanceTabTable } from "./components/IssuanceTabTable";
 import { InsurerBillingTabContent } from "./components/InsurerBillingTabContent";
 import { OcrTabContent } from "./components/OcrTabContent";
+import { ErrorsTabContent } from "./components/ErrorsTabContent";
 
 export default function ProjectIMotorbikePage() {
   const { workflowId, projectId } = useParams<{ workflowId: string; projectId: string }>();
@@ -40,6 +41,11 @@ export default function ProjectIMotorbikePage() {
     view.ocrRows.length === 0
       ? "No OCR data. Upload a CSV."
       : "No rows.";
+
+  const errorsEmptyMessage =
+    view.uploadErrorRows.length === 0
+      ? "No rejected rows. Rows skipped during CSV upload (e.g. no valid date) will appear here."
+      : "No rows match the search.";
 
   return (
     <div className="min-h-screen bg-background">
@@ -114,6 +120,22 @@ export default function ProjectIMotorbikePage() {
             onSortToggle={() => view.setSortAsc((a) => !a)}
             currentPage={view.currentPage}
             totalPages={view.billingTotalPages}
+            pageSize={view.pageSize}
+            onPageChange={view.setCurrentPage}
+          />
+        )}
+
+        {view.activeTab === "errors" && (
+          <ErrorsTabContent
+            searchQuery={view.errorsSearchQuery}
+            onSearchChange={view.setErrorsSearchQuery}
+            rows={view.errorsPaginated}
+            isLoading={view.isLoadingErrors}
+            error={view.errorErrors as Error | null}
+            totalItems={view.errorsSearchFiltered.length}
+            emptyMessage={errorsEmptyMessage}
+            currentPage={view.currentPage}
+            totalPages={view.errorsTotalPages}
             pageSize={view.pageSize}
             onPageChange={view.setCurrentPage}
           />
