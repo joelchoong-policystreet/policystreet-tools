@@ -1,11 +1,7 @@
--- Add project and document_reference columns to ocr_data_table if missing.
--- document_reference: identifier for the document (e.g. vehicle no, policy ref from CSV).
--- project: scoping by project (imotorbike, carsome).
+-- Add project column to ocr_data_table for scoping by project (imotorbike, carsome).
+-- OCR data is stored as raw_data JSONB (exact CSV row).
 
 ALTER TABLE public.ocr_data_table
   ADD COLUMN IF NOT EXISTS project TEXT;
-
-ALTER TABLE public.ocr_data_table
-  ADD COLUMN IF NOT EXISTS document_reference TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_ocr_data_table_project ON public.ocr_data_table(project);

@@ -91,9 +91,10 @@ export function OcrTabContent({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Document Ref.</TableHead>
-                <TableHead className="max-w-[200px]">Extracted text</TableHead>
-                <TableHead>Source filename</TableHead>
+                {rows.length > 0 &&
+                  (Object.keys((rows[0].raw_data ?? {}) as Record<string, unknown>) as string[]).map(
+                    (key) => <TableHead key={key}>{key}</TableHead>
+                  )}
                 <TableHead>
                   <button
                     type="button"
@@ -108,36 +109,43 @@ export function OcrTabContent({
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={100} className="text-center text-muted-foreground py-12">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={100} className="text-center text-muted-foreground py-12">
                     {emptyMessage}
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{row.document_reference ?? "—"}</TableCell>
-                    <TableCell
-                      className="max-w-[200px] truncate"
-                      title={row.extracted_text ?? undefined}
-                    >
-                      {row.extracted_text
-                        ? row.extracted_text.length > 80
-                          ? `${row.extracted_text.slice(0, 80)}…`
-                          : row.extracted_text
-                        : "—"}
-                    </TableCell>
-                    <TableCell>{row.source_filename ?? "—"}</TableCell>
-                    <TableCell>
-                      {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))
+                (() => {
+                  const colKeys = Object.keys((rows[0].raw_data ?? {}) as Record<string, unknown>);
+                  return rows.map((row) => {
+                    const raw = (row.raw_data ?? {}) as Record<string, unknown>;
+                    return (
+                      <TableRow key={row.id}>
+                        {colKeys.map((key) => {
+                          const val = raw[key];
+                          const str = val != null && String(val).trim() !== "" ? String(val) : "";
+                          return (
+                            <TableCell
+                              key={key}
+                              className="max-w-[200px] truncate"
+                              title={str}
+                            >
+                              {str ? (str.length > 60 ? `${str.slice(0, 60)}…` : str) : "—"}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell>
+                          {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+                })()
               )}
             </TableBody>
           </Table>

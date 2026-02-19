@@ -287,12 +287,11 @@ export function useIMotorbikeProjectView() {
   const ocrSearchFiltered = useMemo(() => {
     const q = ocrSearchQuery.trim().toLowerCase();
     if (!q) return ocrSorted;
-    return ocrSorted.filter(
-      (r) =>
-        (r.document_reference ?? "").toLowerCase().includes(q) ||
-        (r.extracted_text ?? "").toLowerCase().includes(q) ||
-        (r.source_filename ?? "").toLowerCase().includes(q)
-    );
+    return ocrSorted.filter((r) => {
+      const raw = (r.raw_data ?? {}) as Record<string, unknown>;
+      const str = JSON.stringify(Object.values(raw)).toLowerCase();
+      return str.includes(q);
+    });
   }, [ocrSorted, ocrSearchQuery]);
   const ocrTotalPages = Math.max(1, Math.ceil(ocrSearchFiltered.length / PAGE_SIZE));
   const ocrPaginated = useMemo(() => {
@@ -526,48 +525,14 @@ export function useIMotorbikeProjectView() {
     try {
       const text = await file.text();
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-      const headers = (parsed.meta.fields ?? []).filter((h) => h != null && String(h).trim() !== "");
-      const headerMap = new Map<string, string>();
-      const norm = (s: string) => String(s).toLowerCase().trim().replace(/\s+/g, "_");
-      headers.forEach((h) => headerMap.set(norm(h), String(h)));
-      const get = (raw: Record<string, string>, ...keys: string[]) => {
-        for (const k of keys) {
-          const orig = headerMap.get(norm(k));
-          if (orig !== undefined) {
-            const val = raw[orig];
-            if (val !== undefined && val !== null && String(val).trim() !== "") return String(val).trim();
-          }
-        }
-        return null;
-      };
       const ocrDataRows = (parsed.data ?? []).filter(
         (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
       );
-      const toInsert = ocrDataRows.map((raw, idx) => {
-        let docRef = get(raw, "document_reference", "ref", "id", "vehicle_no", "vehicle no");
-        const filename = get(raw, "source_filename", "filename", "file_name", "file") ?? file.name;
-        if (!docRef && filename) {
-          const match = filename.match(/\b([A-Z]{2,3}\d{4,})\b/i) ?? filename.match(/[-_]?(\w+)(?:\.\w+)?$/);
-          docRef = match ? match[1] : null;
-        }
-        let extractedText = get(raw, "extracted_text", "extracted text", "text", "content");
-        if (!extractedText) {
-          const parts = [
-            get(raw, "insured_name", "insured name"),
-            get(raw, "vehicle_make/model", "vehicle make/model", "vehicle_make_model"),
-            get(raw, "type_of_cover", "type of cover"),
-            get(raw, "insurer"),
-          ].filter(Boolean);
-          extractedText = parts.length > 0 ? parts.join(" | ") : null;
-        }
-        return {
-          company_id: companyId,
-          project: projectId ?? null,
-          document_reference: docRef ?? `row-${idx + 1}`,
-          extracted_text: extractedText,
-          source_filename: filename,
-        } as TablesInsert<"ocr_data_table">;
-      });
+      const toInsert = ocrDataRows.map((raw) => ({
+        company_id: companyId,
+        project: projectId,
+        raw_data: raw as IntTables<"ocr_data_table">["raw_data"],
+      }));
       if (toInsert.length > 0) {
         const { error: err } = await supabase.from("ocr_data_table").insert(toInsert);
         if (err) throw err;
