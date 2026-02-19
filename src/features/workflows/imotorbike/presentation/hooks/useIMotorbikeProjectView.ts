@@ -608,8 +608,43 @@ export function useIMotorbikeProjectView() {
       const hasInsurer = ({ row }: { row: IntTablesInsert<"ocr_data_table"> }) =>
         (row as Record<string, unknown>).insurer != null &&
         String((row as Record<string, unknown>).insurer).trim() !== "";
-      const validRows = built.filter(hasInsurer);
-      const rejectedRows = built.filter((x) => !hasInsurer(x));
+      const getDedupKey = (row: IntTablesInsert<"ocr_data_table">) => {
+        const r = row as Record<string, unknown>;
+        const v = String(r.vehicle_no ?? "").trim();
+        const d = String(r.date_issue ?? "").trim();
+        return `${v}|${d}`;
+      };
+
+      const existingKeys = new Set<string>();
+      const { data: existingOcr } = await supabase
+        .from("ocr_data_table")
+        .select("vehicle_no, date_issue")
+        .eq("company_id", companyId)
+        .eq("project", projectId);
+      for (const r of existingOcr ?? []) {
+        const v = String((r as { vehicle_no?: string }).vehicle_no ?? "").trim();
+        const d = String((r as { date_issue?: string }).date_issue ?? "").trim();
+        existingKeys.add(`${v}|${d}`);
+      }
+
+      const rejectedRows: { raw: Record<string, string>; reason: string }[] = [];
+      const validRows: typeof built = [];
+      const seenInBatch = new Set<string>();
+
+      for (const item of built) {
+        if (!hasInsurer(item)) {
+          rejectedRows.push({ raw: item.raw, reason: "Missing insurer" });
+          continue;
+        }
+        const key = getDedupKey(item.row);
+        if (existingKeys.has(key) || seenInBatch.has(key)) {
+          rejectedRows.push({ raw: item.raw, reason: "Duplicate" });
+          continue;
+        }
+        seenInBatch.add(key);
+        existingKeys.add(key);
+        validRows.push(item);
+      }
 
       let importedCount = 0;
       if (validRows.length > 0) {
@@ -619,12 +654,12 @@ export function useIMotorbikeProjectView() {
         importedCount = toInsert.length;
       }
       if (rejectedRows.length > 0 && companyId) {
-        const errorInserts = rejectedRows.map(({ raw }) => ({
+        const errorInserts = rejectedRows.map(({ raw, reason }) => ({
           company_id: companyId,
           source: "ocr",
           workflow: projectId,
           raw_data: raw as IntTables<"upload_errors">["raw_data"],
-          rejection_reason: "Missing insurer",
+          rejection_reason: reason,
           file_name: file.name,
         }));
         await supabase.from("upload_errors").insert(errorInserts);
