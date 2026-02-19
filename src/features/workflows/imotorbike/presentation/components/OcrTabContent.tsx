@@ -1,4 +1,5 @@
 import { Upload, ArrowUp, ArrowDown } from "lucide-react";
+import { TableSearch } from "./TableSearch";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -17,6 +18,8 @@ type OcrTabContentProps = {
   uploading: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
   rows: OcrRow[];
   isLoading: boolean;
   error: Error | null;
@@ -35,6 +38,8 @@ export function OcrTabContent({
   uploading,
   fileInputRef,
   onFileChange,
+  searchQuery,
+  onSearchChange,
   rows,
   isLoading,
   error,
@@ -50,6 +55,11 @@ export function OcrTabContent({
   return (
     <>
       <div className="flex flex-wrap items-center gap-4 mb-4">
+        <TableSearch
+          value={searchQuery}
+          onChange={onSearchChange}
+          placeholder="Search document, text, filename…"
+        />
         {!companyId ? (
           <p className="text-sm text-muted-foreground">Loading company…</p>
         ) : (

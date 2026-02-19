@@ -27,6 +27,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { TablePagination } from "@/shared/components/TablePagination";
+import { TableSearch } from "./TableSearch";
 import type { InsurerBillingRow } from "../hooks/useIMotorbikeProjectView";
 import type { DateRange, FilterPreset } from "@/features/workflows/imotorbike/lib/date-utils";
 
@@ -46,6 +47,8 @@ type InsurerBillingTabContentProps = {
   selectedInsurer: string | null;
   onInsurerChange: (insurer: string | null) => void;
   insurerOptions: (string | null)[];
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
   rows: InsurerBillingRow[];
   isLoading: boolean;
   error: Error | null;
@@ -74,6 +77,8 @@ export function InsurerBillingTabContent({
   selectedInsurer,
   onInsurerChange,
   insurerOptions,
+  searchQuery,
+  onSearchChange,
   rows,
   isLoading,
   error,
@@ -142,6 +147,11 @@ export function InsurerBillingTabContent({
       </Dialog>
 
       <div className="flex flex-wrap items-center gap-4 mb-4">
+        <TableSearch
+          value={searchQuery}
+          onChange={onSearchChange}
+          placeholder="Search client, vehicle, policy…"
+        />
         {!companyId ? (
           <p className="text-sm text-muted-foreground">Loading company…</p>
         ) : (
@@ -172,6 +182,7 @@ export function InsurerBillingTabContent({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => onFilterPresetChange("all_time")}>All time</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onFilterPresetChange("this_month")}>This month</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onFilterPresetChange("last_month")}>Last month</DropdownMenuItem>
             <Popover>

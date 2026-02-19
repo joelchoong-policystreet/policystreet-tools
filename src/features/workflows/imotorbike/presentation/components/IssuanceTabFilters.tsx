@@ -1,5 +1,6 @@
 import { Filter, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TableSearch } from "./TableSearch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +15,8 @@ type IssuanceTabFiltersProps = {
   lastUpdated: Date | null;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
   filterLabel: string;
   filterPreset: FilterPreset;
   onFilterPresetChange: (preset: FilterPreset) => void;
@@ -28,6 +31,8 @@ export function IssuanceTabFilters({
   lastUpdated,
   fileInputRef,
   onFileChange,
+  searchQuery,
+  onSearchChange,
   filterLabel,
   filterPreset,
   onFilterPresetChange,
@@ -42,7 +47,8 @@ export function IssuanceTabFilters({
       <p className="text-sm text-muted-foreground">
         {lastUpdated ? `Last updated: ${lastUpdated.toLocaleString()}` : "No data uploaded yet."}
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <TableSearch value={searchQuery} onChange={onSearchChange} placeholder="Search customer, plate, quotation…" />
         <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
           <Upload className="mr-2 h-4 w-4" />
           Upload CSV
@@ -62,6 +68,7 @@ export function IssuanceTabFilters({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => onFilterPresetChange("all_time")}>All time</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onFilterPresetChange("this_month")}>This month</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onFilterPresetChange("last_month")}>Last month</DropdownMenuItem>
             <Popover>

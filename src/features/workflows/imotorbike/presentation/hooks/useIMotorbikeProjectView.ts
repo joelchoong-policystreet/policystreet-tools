@@ -2,6 +2,7 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Papa from "papaparse";
+import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/data/supabase/client";
 import type { Tables, TablesInsert } from "@/data/supabase/types";
 import type { Tables as IntTables, TablesInsert as IntTablesInsert } from "@/integrations/supabase/types";
@@ -92,10 +93,13 @@ export function useIMotorbikeProjectView() {
   const [activeTab, setActiveTab] = useState<TabKind>("issuance");
   const [rows, setRows] = useState<IMotorbikeRow[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [filterPreset, setFilterPreset] = useState<FilterPreset>("this_month");
+  const [filterPreset, setFilterPreset] = useState<FilterPreset>("all_time");
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
   const [selectedInsurer, setSelectedInsurer] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedInsurerBilling, setSelectedInsurerBilling] = useState<string | null>(null);
+  const [billingSearchQuery, setBillingSearchQuery] = useState("");
+  const [ocrSearchQuery, setOcrSearchQuery] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [uploading, setUploading] = useState(false);
@@ -126,6 +130,7 @@ export function useIMotorbikeProjectView() {
   });
 
   useEffect(() => setCurrentPage(1), [activeTab]);
+  useEffect(() => setCurrentPage(1), [searchQuery, billingSearchQuery, ocrSearchQuery]);
 
   const dateFilteredRows = useMemo(
     () => filterByDateRange(rows, filterPreset, customRange, (r) => parsePurchasedDateTime(r.purchasedDate)),
@@ -153,15 +158,29 @@ export function useIMotorbikeProjectView() {
     });
   }, [dateFilteredRows, selectedInsurer, sortAsc]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const searchFilteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filteredRows;
+    return filteredRows.filter(
+      (r) =>
+        (r.customer ?? "").toLowerCase().includes(q) ||
+        (r.plateNo ?? "").toLowerCase().includes(q) ||
+        (r.instantQuotation ?? "").toLowerCase().includes(q) ||
+        (r.insurer ?? "").toLowerCase().includes(q) ||
+        (r.coverage ?? "").toLowerCase().includes(q) ||
+        (r.partner ?? "").toLowerCase().includes(q)
+    );
+  }, [filteredRows, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(searchFilteredRows.length / PAGE_SIZE));
   const paginatedRows = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredRows.slice(start, start + PAGE_SIZE);
-  }, [filteredRows, currentPage]);
+    return searchFilteredRows.slice(start, start + PAGE_SIZE);
+  }, [searchFilteredRows, currentPage]);
 
-  const before6PM = useMemo(() => getBefore6PMCount(filteredRows), [filteredRows]);
-  const after6PM = useMemo(() => getAfter6PMCount(filteredRows), [filteredRows]);
-  const totalIssuances = filteredRows.length;
+  const before6PM = useMemo(() => getBefore6PMCount(searchFilteredRows), [searchFilteredRows]);
+  const after6PM = useMemo(() => getAfter6PMCount(searchFilteredRows), [searchFilteredRows]);
+  const totalIssuances = searchFilteredRows.length;
 
   const getBillingIssueDate = (r: InsurerBillingRow): Date | null => {
     const d = r.issue_date ?? r.transaction_date;
@@ -194,11 +213,25 @@ export function useIMotorbikeProjectView() {
     });
   }, [billingDateFiltered, selectedInsurerBilling, sortAsc]);
 
-  const billingTotalPages = Math.max(1, Math.ceil(billingFiltered.length / PAGE_SIZE));
+  const billingSearchFiltered = useMemo(() => {
+    const q = billingSearchQuery.trim().toLowerCase();
+    if (!q) return billingFiltered;
+    return billingFiltered.filter(
+      (r) =>
+        (r.client_name ?? "").toLowerCase().includes(q) ||
+        (r.vehicle_no ?? "").toLowerCase().includes(q) ||
+        (r.policy_no ?? "").toLowerCase().includes(q) ||
+        (r.cn_no ?? "").toLowerCase().includes(q) ||
+        (r.account_no ?? "").toLowerCase().includes(q) ||
+        (r.quotation ?? "").toLowerCase().includes(q)
+    );
+  }, [billingFiltered, billingSearchQuery]);
+
+  const billingTotalPages = Math.max(1, Math.ceil(billingSearchFiltered.length / PAGE_SIZE));
   const billingPaginated = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return billingFiltered.slice(start, start + PAGE_SIZE);
-  }, [billingFiltered, currentPage]);
+    return billingSearchFiltered.slice(start, start + PAGE_SIZE);
+  }, [billingSearchFiltered, currentPage]);
 
   const ocrSorted = useMemo(
     () =>
@@ -207,11 +240,21 @@ export function useIMotorbikeProjectView() {
       ),
     [ocrRows, sortAsc]
   );
-  const ocrTotalPages = Math.max(1, Math.ceil(ocrSorted.length / PAGE_SIZE));
+  const ocrSearchFiltered = useMemo(() => {
+    const q = ocrSearchQuery.trim().toLowerCase();
+    if (!q) return ocrSorted;
+    return ocrSorted.filter(
+      (r) =>
+        (r.document_reference ?? "").toLowerCase().includes(q) ||
+        (r.extracted_text ?? "").toLowerCase().includes(q) ||
+        (r.source_filename ?? "").toLowerCase().includes(q)
+    );
+  }, [ocrSorted, ocrSearchQuery]);
+  const ocrTotalPages = Math.max(1, Math.ceil(ocrSearchFiltered.length / PAGE_SIZE));
   const ocrPaginated = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return ocrSorted.slice(start, start + PAGE_SIZE);
-  }, [ocrSorted, currentPage]);
+    return ocrSearchFiltered.slice(start, start + PAGE_SIZE);
+  }, [ocrSearchFiltered, currentPage]);
 
   const filterLabel = getFilterLabel(filterPreset, customRange);
 
@@ -223,6 +266,7 @@ export function useIMotorbikeProjectView() {
       setRows(data);
       setLastUpdated(new Date());
       setCurrentPage(1);
+      toast({ title: "Upload successful", description: `${data.length} row(s) imported.` });
     } catch (err) {
       console.error(err);
     }
@@ -347,6 +391,7 @@ export function useIMotorbikeProjectView() {
         const { error: err } = await supabase.from("insurer_billing_data").insert(rows);
         if (err) throw err;
         await queryClient.invalidateQueries({ queryKey: ["imotorbike-insurer-billing", companyId] });
+        toast({ title: "Upload successful", description: `${rows.length} billing row(s) imported.` });
       }
     } catch (err) {
       const msg =
@@ -386,6 +431,7 @@ export function useIMotorbikeProjectView() {
         const { error: err } = await supabase.from("ocr_data").insert(toInsert);
         if (err) throw err;
         await queryClient.invalidateQueries({ queryKey: ["imotorbike-ocr", companyId] });
+        toast({ title: "Upload successful", description: `${toInsert.length} OCR row(s) imported.` });
       }
     } finally {
       setUploading(false);
@@ -421,8 +467,10 @@ export function useIMotorbikeProjectView() {
     rows,
     lastUpdated,
     insurerOptions,
+    searchQuery,
+    setSearchQuery,
     paginatedRows,
-    filteredRows,
+    searchFilteredRows,
     totalPages,
     before6PM,
     after6PM,
@@ -434,13 +482,18 @@ export function useIMotorbikeProjectView() {
     errorBilling,
     billingUploadError,
     billingInsurerOptions,
-    billingFiltered,
+    billingSearchQuery,
+    setBillingSearchQuery,
+    billingSearchFiltered,
     billingPaginated,
     billingTotalPages,
     prepareBillingUpload,
     handleBillingFileChange,
     // OCR tab
     ocrRows,
+    ocrSearchQuery,
+    setOcrSearchQuery,
+    ocrSearchFiltered,
     isLoadingOcr,
     errorOcr,
     ocrSorted,

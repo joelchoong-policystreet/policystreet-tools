@@ -10,7 +10,7 @@ import {
   type Interval,
 } from "date-fns";
 
-export type FilterPreset = "this_month" | "last_month" | "custom";
+export type FilterPreset = "all_time" | "this_month" | "last_month" | "custom";
 export type DateRange = { from: Date; to?: Date };
 
 export function parsePurchasedDateTime(value: string): Date | null {
@@ -64,6 +64,7 @@ export function filterByDateRange<T>(
   getDate: (row: T) => Date | null
 ): T[] {
   if (rows.length === 0) return rows;
+  if (preset === "all_time") return rows;
   if (preset === "custom" && customRange?.from) {
     const from = customRange.from;
     const to = customRange.to ?? from;
@@ -88,6 +89,7 @@ export function filterByDateRange<T>(
 }
 
 export function getFilterLabel(preset: FilterPreset, customRange: DateRange | null): string {
+  if (preset === "all_time") return "All time";
   if (preset === "this_month") return "This month";
   if (preset === "last_month") return "Last month";
   if (customRange?.from) {

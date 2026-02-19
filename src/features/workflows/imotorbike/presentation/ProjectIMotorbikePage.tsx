@@ -53,6 +53,8 @@ export default function ProjectIMotorbikePage() {
               lastUpdated={view.lastUpdated}
               fileInputRef={view.fileInputRef}
               onFileChange={view.handleIssuanceFileChange}
+              searchQuery={view.searchQuery}
+              onSearchChange={view.setSearchQuery}
               filterLabel={view.filterLabel}
               filterPreset={view.filterPreset}
               onFilterPresetChange={view.setFilterPreset}
@@ -75,7 +77,7 @@ export default function ProjectIMotorbikePage() {
               onSortToggle={() => view.setSortAsc((a) => !a)}
               currentPage={view.currentPage}
               totalPages={view.totalPages}
-              totalItems={view.filteredRows.length}
+              totalItems={view.searchFilteredRows.length}
               pageSize={view.pageSize}
               onPageChange={view.setCurrentPage}
             />
@@ -100,11 +102,13 @@ export default function ProjectIMotorbikePage() {
             selectedInsurer={view.selectedInsurerBilling}
             onInsurerChange={view.setSelectedInsurerBilling}
             insurerOptions={view.billingInsurerOptions}
+            searchQuery={view.billingSearchQuery}
+            onSearchChange={view.setBillingSearchQuery}
             rows={view.billingPaginated}
             isLoading={view.isLoadingBilling}
             error={view.errorBilling as Error | null}
             uploadError={view.billingUploadError}
-            totalItems={view.billingFiltered.length}
+            totalItems={view.billingSearchFiltered.length}
             emptyMessage={billingEmptyMessage}
             sortAsc={view.sortAsc}
             onSortToggle={() => view.setSortAsc((a) => !a)}
@@ -121,10 +125,12 @@ export default function ProjectIMotorbikePage() {
             uploading={view.uploading}
             fileInputRef={view.ocrFileInputRef}
             onFileChange={view.handleOcrFileChange}
+            searchQuery={view.ocrSearchQuery}
+            onSearchChange={view.setOcrSearchQuery}
             rows={view.ocrPaginated}
             isLoading={view.isLoadingOcr}
             error={view.errorOcr as Error | null}
-            totalItems={view.ocrSorted.length}
+            totalItems={view.ocrSearchFiltered.length}
             emptyMessage={ocrEmptyMessage}
             sortAsc={view.sortAsc}
             onSortToggle={() => view.setSortAsc((a) => !a)}
