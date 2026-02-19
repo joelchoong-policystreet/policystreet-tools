@@ -464,18 +464,8 @@ export function useIMotorbikeProjectView() {
         if (noDate) return "No valid date";
         return "Missing insurer";
       };
-      if (rejectedRows.length > 0 && companyId) {
-        const errorInserts = rejectedRows.map((raw) => ({
-          company_id: companyId,
-          source: "insurer_billing",
-          workflow: projectId ?? null,
-          raw_data: raw as IntTables<"upload_errors">["raw_data"],
-          rejection_reason: getRejectionReason(raw),
-          file_name: file.name,
-        }));
-        await supabase.from("upload_errors").insert(errorInserts);
-      }
-      const toInsert: IntTablesInsert<"insurer_billing_data">[] = validRows.map((raw) => ({
+      const toInsert: IntTablesInsert<"insurer_billing_data">[] = validRows
+        .map((raw) => ({
         company_id: companyId,
         project: projectId ?? null,
         insurer: getInsurer(raw)!,
@@ -518,21 +508,38 @@ export function useIMotorbikeProjectView() {
         trx_status: get(raw, "trx status", "trx_status") ?? null,
         total_amount: parseNumeric(get(raw, "totalamt", "total_amount")),
       }));
+      let importedCount = 0;
       if (toInsert.length > 0) {
-        const rows = toInsert.map((row) =>
-          Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined))
-        ) as IntTablesInsert<"insurer_billing_data">[];
-        const { error: err } = await supabase.from("insurer_billing_data").insert(rows);
-        if (err) throw err;
-        await queryClient.invalidateQueries({ queryKey: ["insurer-billing", companyId, projectId] });
-        if (rejectedRows.length > 0) {
-          await queryClient.invalidateQueries({ queryKey: ["upload-errors", companyId, projectId] });
+        const rows = toInsert
+          .filter((row) => row.insurer != null && String(row.insurer).trim() !== "")
+          .map((row) =>
+            Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined))
+          ) as IntTablesInsert<"insurer_billing_data">[];
+        if (rows.length > 0) {
+          const { error: err } = await supabase.from("insurer_billing_data").insert(rows);
+          if (err) throw err;
+          importedCount = rows.length;
         }
-        const skippedCount = rejectedRows.length;
+        await queryClient.invalidateQueries({ queryKey: ["insurer-billing", companyId, projectId] });
+      }
+      if (rejectedRows.length > 0 && companyId) {
+        const errorInserts = rejectedRows.map((raw) => ({
+          company_id: companyId,
+          source: "insurer_billing",
+          workflow: projectId ?? null,
+          raw_data: raw as IntTables<"upload_errors">["raw_data"],
+          rejection_reason: getRejectionReason(raw),
+          file_name: file.name,
+        }));
+        await supabase.from("upload_errors").insert(errorInserts);
+        await queryClient.invalidateQueries({ queryKey: ["upload-errors", companyId, projectId] });
+      }
+      const skippedCount = rejectedRows.length;
+      if (importedCount > 0 || skippedCount > 0) {
         const desc =
           skippedCount > 0
-            ? `${rows.length} billing row(s) imported. ${skippedCount} row(s) skipped (see Errors tab).`
-            : `${rows.length} billing row(s) imported.`;
+            ? `${importedCount} billing row(s) imported. ${skippedCount} row(s) skipped (see Errors tab).`
+            : `${importedCount} billing row(s) imported.`;
         toast({ title: "Upload successful", description: desc });
       }
     } catch (err) {
