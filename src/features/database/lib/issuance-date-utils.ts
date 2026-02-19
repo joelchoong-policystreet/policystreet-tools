@@ -1,0 +1,80 @@
+import {
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  isWithinInterval,
+  parseISO,
+  parse,
+  isValid,
+  type Interval,
+} from "date-fns";
+
+export type FilterPreset = "this_month" | "last_month" | "custom";
+export type DateRange = { from: Date; to?: Date };
+
+export function parsePurchasedDate(value: string | null): Date | null {
+  if (!value?.trim()) return null;
+  const s = value.trim();
+  let d = parseISO(s);
+  if (isValid(d)) return d;
+  d = parse(s, "dd/MM/yyyy HH:mm", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "dd/MM/yyyy", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "yyyy-MM-dd HH:mm", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "yyyy-MM-dd", new Date());
+  if (isValid(d)) return d;
+  return null;
+}
+
+export function isBefore6PM(date: Date): boolean {
+  return date.getHours() < 18;
+}
+
+export function filterByDateRange<T extends { purchased_date: string | null }>(
+  rows: T[],
+  preset: FilterPreset,
+  customRange: DateRange | null,
+  getDate: (row: T) => Date | null = (r) => parsePurchasedDate(r.purchased_date)
+): T[] {
+  if (rows.length === 0) return rows;
+  if (preset === "custom" && customRange?.from) {
+    const from = customRange.from;
+    const to = customRange.to ?? from;
+    return rows.filter((r) => {
+      const d = getDate(r);
+      if (!d) return false;
+      return isWithinInterval(d, { start: from, end: to });
+    });
+  }
+  const now = new Date();
+  let interval: Interval;
+  if (preset === "last_month") {
+    interval = {
+      start: startOfMonth(subMonths(now, 1)),
+      end: endOfMonth(subMonths(now, 1)),
+    };
+  } else {
+    interval = { start: startOfMonth(now), end: endOfMonth(now) };
+  }
+  return rows.filter((r) => {
+    const d = getDate(r);
+    if (!d) return false;
+    return isWithinInterval(d, interval);
+  });
+}
+
+export function getFilterLabel(
+  preset: FilterPreset,
+  customRange: DateRange | null
+): string {
+  if (preset === "this_month") return "This month";
+  if (preset === "last_month") return "Last month";
+  if (customRange?.from) {
+    const from = customRange.from.toLocaleDateString();
+    const to = customRange.to ? customRange.to.toLocaleDateString() : from;
+    return `Custom (${from}${customRange.to ? ` – ${to}` : ""})`;
+  }
+  return "Custom";
+}
