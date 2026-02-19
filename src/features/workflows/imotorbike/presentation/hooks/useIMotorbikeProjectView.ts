@@ -221,19 +221,70 @@ export function useIMotorbikeProjectView() {
     try {
       const text = await file.text();
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-      const normalize = (h: string) => h?.toLowerCase().replace(/\s+/g, "_").trim() ?? "";
-      const toInsert = (parsed.data ?? []).map((raw) => {
-        const get = (keys: string[]) => keys.map((k) => raw[normalize(k)] ?? raw[k]).find(Boolean);
-        return {
-          company_id: companyId,
-          billing_date: get(["billing_date", "date", "billing date"]) ?? null,
-          reference_number: get(["reference_number", "reference", "ref"]) ?? null,
-          insurer: get(["insurer"]) ?? null,
-          amount: get(["amount"]) ?? null,
-          policy_number: get(["policy_number", "policy number"]) ?? null,
-          description: get(["description", "notes"]) ?? null,
-        } as TablesInsert<"insurer_billing_data">;
-      });
+      // Build a lookup: lowercase-trimmed header → original header
+      const headers = parsed.meta.fields ?? [];
+      const headerMap = new Map<string, string>();
+      headers.forEach((h) => headerMap.set(h.toLowerCase().trim(), h));
+      const get = (raw: Record<string, string>, ...keys: string[]) => {
+        for (const k of keys) {
+          const orig = headerMap.get(k.toLowerCase().trim());
+          if (orig && raw[orig]) return raw[orig];
+        }
+        return null;
+      };
+      // Detect insurer from first data row or filename
+      const firstRow = parsed.data[0];
+      const detectedInsurer =
+        get(firstRow ?? {}, "insurer") ??
+        (file.name.toLowerCase().includes("generali") ? "Generali" :
+         file.name.toLowerCase().includes("allianz") ? "Allianz" : "Unknown");
+
+      const toInsert = (parsed.data ?? []).map((raw) => ({
+        company_id: companyId,
+        insurer: get(raw, "insurer") ?? detectedInsurer,
+        // Shared
+        row_number: get(raw, "no.", "no"),
+        policy_no: get(raw, "policy no.", "policy no", "policy_no"),
+        client_name: get(raw, "name of insured", "client", "client_name"),
+        vehicle_no: get(raw, "vehicle no", "vehicle no.", "vehicle_no"),
+        status: get(raw, "status"),
+        sum_insured: get(raw, "sum insured (rm)", "sum insured", "sum_insured"),
+        // Allianz
+        cn_no: get(raw, "c/n no.", "c/n no", "cn_no"),
+        account_no: get(raw, "account no.", "account no", "account_no"),
+        issue_date: get(raw, "issue date", "issue_date"),
+        issued_by: get(raw, "issued by", "issued_by"),
+        type: get(raw, "type"),
+        effective_date: get(raw, "effective date", "effective_date"),
+        expiry_date: get(raw, "expiry date", "expiry_date"),
+        vehicle_type: get(raw, "vehicle type", "vehicle_type"),
+        coverage_type: get(raw, "coverage type", "coverage_type"),
+        chassis: get(raw, "chassis"),
+        jpj_status: get(raw, "jpj status", "jpj_status"),
+        gross_premium: get(raw, "gross premium (rm)", "gross premium", "gross_premium"),
+        rebate: get(raw, "rebate (rm)", "rebate"),
+        gst: get(raw, "gst (rm)", "gst"),
+        service_tax: get(raw, "serv. tax (rm)", "serv. tax", "service_tax"),
+        stamp: get(raw, "stamp (rm)", "stamp"),
+        premium_due: get(raw, "premium due (rm)", "premium due", "premium_due"),
+        commission: get(raw, "commission (rm)", "commission"),
+        gst_commission: get(raw, "gst commission (rm)", "gst commission", "gst_commission"),
+        nett_premium: get(raw, "nett premium (rm)", "nett premium", "nett_premium"),
+        amount_payable: get(raw, "amount payable (rounded) (rm)", "amount payable", "amount_payable"),
+        ptv_amount: get(raw, "ptv amount", "ptv_amount"),
+        premium_due_after_ptv: get(raw, "premium due after ptv", "premium_due_after_ptv"),
+        // Generali
+        agent_code: get(raw, "agent code", "agent_code"),
+        user_id: get(raw, "userid", "user_id"),
+        transaction_date: get(raw, "date"),
+        transaction_time: get(raw, "time"),
+        class_product: get(raw, "class & product", "class_product"),
+        quotation: get(raw, "quotation"),
+        repl_prev_no: get(raw, "repl/prev no.", "repl/prev no", "repl_prev_no"),
+        trx_status: get(raw, "trx status", "trx_status"),
+        total_amount: get(raw, "totalamt", "total_amount"),
+      } as TablesInsert<"insurer_billing_data">));
+
       if (toInsert.length > 0) {
         const { error: err } = await supabase.from("insurer_billing_data").insert(toInsert);
         if (err) throw err;

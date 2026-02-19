@@ -61,6 +61,149 @@ export type Database = {
         }
         Relationships: []
       }
+      insurer_billing_data: {
+        Row: {
+          account_no: string | null
+          agent_code: string | null
+          amount_payable: number | null
+          chassis: string | null
+          class_product: string | null
+          client_name: string | null
+          cn_no: string | null
+          commission: number | null
+          company_id: string
+          coverage_type: string | null
+          created_at: string
+          effective_date: string | null
+          expiry_date: string | null
+          gross_premium: number | null
+          gst: number | null
+          gst_commission: number | null
+          id: string
+          insurer: string
+          issue_date: string | null
+          issued_by: string | null
+          jpj_status: string | null
+          nett_premium: number | null
+          policy_no: string | null
+          premium_due: number | null
+          premium_due_after_ptv: number | null
+          ptv_amount: number | null
+          quotation: string | null
+          rebate: number | null
+          repl_prev_no: string | null
+          row_number: string | null
+          service_tax: number | null
+          stamp: number | null
+          status: string | null
+          sum_insured: number | null
+          total_amount: number | null
+          transaction_date: string | null
+          transaction_time: string | null
+          trx_status: string | null
+          type: string | null
+          user_id: string | null
+          vehicle_no: string | null
+          vehicle_type: string | null
+        }
+        Insert: {
+          account_no?: string | null
+          agent_code?: string | null
+          amount_payable?: number | null
+          chassis?: string | null
+          class_product?: string | null
+          client_name?: string | null
+          cn_no?: string | null
+          commission?: number | null
+          company_id: string
+          coverage_type?: string | null
+          created_at?: string
+          effective_date?: string | null
+          expiry_date?: string | null
+          gross_premium?: number | null
+          gst?: number | null
+          gst_commission?: number | null
+          id?: string
+          insurer: string
+          issue_date?: string | null
+          issued_by?: string | null
+          jpj_status?: string | null
+          nett_premium?: number | null
+          policy_no?: string | null
+          premium_due?: number | null
+          premium_due_after_ptv?: number | null
+          ptv_amount?: number | null
+          quotation?: string | null
+          rebate?: number | null
+          repl_prev_no?: string | null
+          row_number?: string | null
+          service_tax?: number | null
+          stamp?: number | null
+          status?: string | null
+          sum_insured?: number | null
+          total_amount?: number | null
+          transaction_date?: string | null
+          transaction_time?: string | null
+          trx_status?: string | null
+          type?: string | null
+          user_id?: string | null
+          vehicle_no?: string | null
+          vehicle_type?: string | null
+        }
+        Update: {
+          account_no?: string | null
+          agent_code?: string | null
+          amount_payable?: number | null
+          chassis?: string | null
+          class_product?: string | null
+          client_name?: string | null
+          cn_no?: string | null
+          commission?: number | null
+          company_id?: string
+          coverage_type?: string | null
+          created_at?: string
+          effective_date?: string | null
+          expiry_date?: string | null
+          gross_premium?: number | null
+          gst?: number | null
+          gst_commission?: number | null
+          id?: string
+          insurer?: string
+          issue_date?: string | null
+          issued_by?: string | null
+          jpj_status?: string | null
+          nett_premium?: number | null
+          policy_no?: string | null
+          premium_due?: number | null
+          premium_due_after_ptv?: number | null
+          ptv_amount?: number | null
+          quotation?: string | null
+          rebate?: number | null
+          repl_prev_no?: string | null
+          row_number?: string | null
+          service_tax?: number | null
+          stamp?: number | null
+          status?: string | null
+          sum_insured?: number | null
+          total_amount?: number | null
+          transaction_date?: string | null
+          transaction_time?: string | null
+          trx_status?: string | null
+          type?: string | null
+          user_id?: string | null
+          vehicle_no?: string | null
+          vehicle_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurer_billing_data_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       issuances: {
         Row: {
           company_id: string
