@@ -523,17 +523,41 @@ export function useIMotorbikeProjectView() {
     try {
       const text = await file.text();
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+      const headers = (parsed.meta.fields ?? []).filter((h) => h != null && String(h).trim() !== "");
+      const headerMap = new Map<string, string>();
+      const norm = (s: string) => String(s).toLowerCase().trim().replace(/\s+/g, "_");
+      headers.forEach((h) => headerMap.set(norm(h), String(h)));
+      const get = (raw: Record<string, string>, ...keys: string[]) => {
+        for (const k of keys) {
+          const orig = headerMap.get(norm(k));
+          if (orig !== undefined) {
+            const val = raw[orig];
+            if (val !== undefined && val !== null && String(val).trim() !== "") return String(val).trim();
+          }
+        }
+        return null;
+      };
       const ocrDataRows = (parsed.data ?? []).filter(
         (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
       );
-      const normalize = (h: string) => h?.toLowerCase().replace(/\s+/g, "_").trim() ?? "";
       const toInsert = ocrDataRows.map((raw) => {
-        const get = (keys: string[]) => keys.map((k) => raw[normalize(k)] ?? raw[k]).find(Boolean);
+        const docRef = get(raw, "document_reference", "ref", "id", "vehicle_no", "vehicle no");
+        const filename = get(raw, "source_filename", "filename", "file_name", "file");
+        let extractedText = get(raw, "extracted_text", "extracted text", "text", "content");
+        if (!extractedText) {
+          const parts = [
+            get(raw, "insured_name", "insured name"),
+            get(raw, "vehicle_make/model", "vehicle make/model", "vehicle_make_model"),
+            get(raw, "type_of_cover", "type of cover"),
+            get(raw, "insurer"),
+          ].filter(Boolean);
+          extractedText = parts.length > 0 ? parts.join(" | ") : null;
+        }
         return {
           company_id: companyId,
-          document_reference: get(["document_reference", "ref", "id"]) ?? null,
-          extracted_text: get(["extracted_text", "extracted text", "text", "content"]) ?? null,
-          source_filename: get(["source_filename", "filename", "file"]) ?? file.name ?? null,
+          document_reference: docRef,
+          extracted_text: extractedText,
+          source_filename: filename ?? file.name,
         } as TablesInsert<"ocr_data_table">;
       });
       if (toInsert.length > 0) {
@@ -542,6 +566,10 @@ export function useIMotorbikeProjectView() {
         await queryClient.invalidateQueries({ queryKey: ["ocr", companyId, projectId] });
         toast({ title: "Upload successful", description: `${toInsert.length} OCR row(s) imported.` });
       }
+    } catch (err) {
+      const msg =
+        (err as { message?: string })?.message ?? (err instanceof Error ? err.message : "Upload failed");
+      toast({ title: "OCR upload failed", description: msg, variant: "destructive" });
     } finally {
       setUploading(false);
       e.target.value = "";
