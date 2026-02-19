@@ -20,12 +20,15 @@ type OcrTabContentProps = {
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  lastUpdated: Date | null;
   rows: OcrRow[];
   isLoading: boolean;
   error: Error | null;
   totalItems: number;
   emptyMessage: string;
+  sortBy: "date_issue" | "created_at";
   sortAsc: boolean;
+  onSortByChange: (by: "date_issue" | "created_at") => void;
   onSortToggle: () => void;
   currentPage: number;
   totalPages: number;
@@ -40,12 +43,15 @@ export function OcrTabContent({
   onFileChange,
   searchQuery,
   onSearchChange,
+  lastUpdated,
   rows,
   isLoading,
   error,
   totalItems,
   emptyMessage,
+  sortBy,
   sortAsc,
+  onSortByChange,
   onSortToggle,
   currentPage,
   totalPages,
@@ -55,6 +61,9 @@ export function OcrTabContent({
   return (
     <>
       <div className="flex flex-wrap items-center gap-4 mb-4">
+        <p className="text-sm text-muted-foreground">
+          {lastUpdated ? `Last updated: ${lastUpdated.toLocaleString()}` : "No OCR data uploaded yet."}
+        </p>
         <TableSearch
           value={searchQuery}
           onChange={onSearchChange}
@@ -91,7 +100,18 @@ export function OcrTabContent({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date Issue</TableHead>
+                <TableHead>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 font-medium hover:text-foreground"
+                    onClick={() => {
+                      onSortByChange("date_issue");
+                      if (sortBy === "date_issue") onSortToggle();
+                    }}
+                  >
+                    Date Issue {sortBy === "date_issue" && (sortAsc ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />)}
+                  </button>
+                </TableHead>
                 <TableHead>Vehicle No</TableHead>
                 <TableHead>Insured Name</TableHead>
                 <TableHead>Insured IC No</TableHead>
@@ -117,9 +137,12 @@ export function OcrTabContent({
                   <button
                     type="button"
                     className="flex items-center gap-1 font-medium hover:text-foreground"
-                    onClick={onSortToggle}
+                    onClick={() => {
+                      onSortByChange("created_at");
+                      if (sortBy === "created_at") onSortToggle();
+                    }}
                   >
-                    Created {sortAsc ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                    Created {sortBy === "created_at" && (sortAsc ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />)}
                   </button>
                 </TableHead>
               </TableRow>

@@ -149,13 +149,16 @@ export default function ProjectIMotorbikePage() {
             onFileChange={view.handleOcrFileChange}
             searchQuery={view.ocrSearchQuery}
             onSearchChange={view.setOcrSearchQuery}
+            lastUpdated={view.ocrLastUpdated}
             rows={view.ocrPaginated}
             isLoading={view.isLoadingOcr}
             error={view.errorOcr as Error | null}
             totalItems={view.ocrSearchFiltered.length}
             emptyMessage={ocrEmptyMessage}
-            sortAsc={view.sortAsc}
-            onSortToggle={() => view.setSortAsc((a) => !a)}
+            sortBy={view.ocrSortBy}
+            sortAsc={view.ocrSortAsc}
+            onSortByChange={view.setOcrSortBy}
+            onSortToggle={() => view.setOcrSortAsc((a) => !a)}
             currentPage={view.currentPage}
             totalPages={view.ocrTotalPages}
             pageSize={view.pageSize}

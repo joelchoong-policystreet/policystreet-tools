@@ -137,6 +137,8 @@ export function useIMotorbikeProjectView() {
   const [selectedInsurerBilling, setSelectedInsurerBilling] = useState<string | null>(null);
   const [billingSearchQuery, setBillingSearchQuery] = useState("");
   const [ocrSearchQuery, setOcrSearchQuery] = useState("");
+  const [ocrSortBy, setOcrSortBy] = useState<"date_issue" | "created_at">("date_issue");
+  const [ocrSortAsc, setOcrSortAsc] = useState(true);
   const [errorsSearchQuery, setErrorsSearchQuery] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -277,13 +279,19 @@ export function useIMotorbikeProjectView() {
     return billingSearchFiltered.slice(start, start + PAGE_SIZE);
   }, [billingSearchFiltered, currentPage]);
 
-  const ocrSorted = useMemo(
-    () =>
-      [...ocrRows].sort(
-        (a, b) => (new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) * (sortAsc ? 1 : -1)
-      ),
-    [ocrRows, sortAsc]
-  );
+  const ocrSorted = useMemo(() => {
+    return [...ocrRows].sort((a, b) => {
+      let cmp = 0;
+      if (ocrSortBy === "created_at") {
+        cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      } else {
+        const da = parseBillingDate(a.date_issue)?.getTime() ?? 0;
+        const db = parseBillingDate(b.date_issue)?.getTime() ?? 0;
+        cmp = da - db;
+      }
+      return ocrSortAsc ? cmp : -cmp;
+    });
+  }, [ocrRows, ocrSortBy, ocrSortAsc]);
   const ocrSearchFiltered = useMemo(() => {
     const q = ocrSearchQuery.trim().toLowerCase();
     if (!q) return ocrSorted;
@@ -302,6 +310,18 @@ export function useIMotorbikeProjectView() {
       return vals.some((v) => (v ?? "").toLowerCase().includes(q));
     });
   }, [ocrSorted, ocrSearchQuery]);
+  const ocrLastUpdated = useMemo(() => {
+    if (ocrRows.length === 0) return null;
+    const max = ocrRows.reduce(
+      (acc, r) => {
+        const t = new Date(r.created_at).getTime();
+        return t > acc ? t : acc;
+      },
+      0
+    );
+    return max > 0 ? new Date(max) : null;
+  }, [ocrRows]);
+
   const ocrTotalPages = Math.max(1, Math.ceil(ocrSearchFiltered.length / PAGE_SIZE));
   const ocrPaginated = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -426,38 +446,39 @@ export function useIMotorbikeProjectView() {
       const dataRows = (parsed.data ?? []).filter(
         (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
       );
-      // Only insert rows that have a valid issue/transaction date (avoid null issue_date)
-      const rowsWithDate = dataRows.filter((raw) => {
+      const getInsurer = (raw: Record<string, string>) => get(raw, "insurer");
+      const isValidDate = (raw: Record<string, string>) => {
         const dateVal = getDateForIssue(raw);
         return dateVal !== null && toISODateOnly(dateVal) !== null;
-      });
-      const rejectedRows = dataRows.filter((raw) => {
-        const dateVal = getDateForIssue(raw);
-        return dateVal === null || toISODateOnly(dateVal) === null;
-      });
-      const skippedNoDate = rejectedRows.length;
+      };
+      const hasInsurer = (raw: Record<string, string>) => {
+        const v = getInsurer(raw);
+        return v != null && String(v).trim() !== "";
+      };
+      const validRows = dataRows.filter((raw) => isValidDate(raw) && hasInsurer(raw));
+      const rejectedRows = dataRows.filter((raw) => !isValidDate(raw) || !hasInsurer(raw));
+      const getRejectionReason = (raw: Record<string, string>) => {
+        const noDate = !isValidDate(raw);
+        const noInsurer = !hasInsurer(raw);
+        if (noDate && noInsurer) return "No valid date; Missing insurer";
+        if (noDate) return "No valid date";
+        return "Missing insurer";
+      };
       if (rejectedRows.length > 0 && companyId) {
         const errorInserts = rejectedRows.map((raw) => ({
           company_id: companyId,
           source: "insurer_billing",
           workflow: projectId ?? null,
           raw_data: raw as IntTables<"upload_errors">["raw_data"],
-          rejection_reason: "No valid date",
+          rejection_reason: getRejectionReason(raw),
           file_name: file.name,
         }));
         await supabase.from("upload_errors").insert(errorInserts);
       }
-      const firstRow = dataRows[0];
-      const detectedInsurer =
-        insurerForUpload ??
-        get(firstRow ?? {}, "insurer") ??
-        (file.name.toLowerCase().includes("generali") ? "Generali" :
-         file.name.toLowerCase().includes("allianz") ? "Allianz" : "Unknown");
-
-      const toInsert: IntTablesInsert<"insurer_billing_data">[] = rowsWithDate.map((raw) => ({
+      const toInsert: IntTablesInsert<"insurer_billing_data">[] = validRows.map((raw) => ({
         company_id: companyId,
         project: projectId ?? null,
-        insurer: get(raw, "insurer") ?? detectedInsurer,
+        insurer: getInsurer(raw)!,
         row_number: get(raw, "no.", "no") ?? null,
         policy_no: get(raw, "policy no.", "policy no", "policy_no") ?? null,
         client_name: get(raw, "name of insured", "client", "client_name") ?? null,
@@ -507,9 +528,10 @@ export function useIMotorbikeProjectView() {
         if (rejectedRows.length > 0) {
           await queryClient.invalidateQueries({ queryKey: ["upload-errors", companyId, projectId] });
         }
+        const skippedCount = rejectedRows.length;
         const desc =
-          skippedNoDate > 0
-            ? `${rows.length} billing row(s) imported. ${skippedNoDate} row(s) skipped (no valid date).`
+          skippedCount > 0
+            ? `${rows.length} billing row(s) imported. ${skippedCount} row(s) skipped (see Errors tab).`
             : `${rows.length} billing row(s) imported.`;
         toast({ title: "Upload successful", description: desc });
       }
@@ -646,6 +668,11 @@ export function useIMotorbikeProjectView() {
     ocrRows,
     ocrSearchQuery,
     setOcrSearchQuery,
+    ocrLastUpdated,
+    ocrSortBy,
+    ocrSortAsc,
+    setOcrSortBy,
+    setOcrSortAsc,
     ocrSearchFiltered,
     isLoadingOcr,
     errorOcr,
