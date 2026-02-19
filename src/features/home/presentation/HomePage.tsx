@@ -7,9 +7,10 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <main className="container py-20 space-y-12">
         <div className="space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight">Welcome to PolicyStreet Tools</h1>
+          <h1 className="text-4xl font-bold tracking-tight">Welcome</h1>
           <p className="text-xl text-muted-foreground max-w-2xl">
-            Manage, edit, and generate professional reports with ease. Upload your data, make real-time edits, and export as PDF.
+            This is a version that helps create a structured database for the team that can in the
+            future be transferred to the CRM.
           </p>
         </div>
 
@@ -23,7 +24,8 @@ export default function HomePage() {
                     Report Generator
                   </h2>
                   <p className="text-muted-foreground">
-                    Import CSV data, review and edit inline, then generate professional PDF reports with custom branding.
+                    Import CSV data, review and edit inline, then generate professional PDF reports
+                    with custom branding.
                   </p>
                 </div>
                 <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />

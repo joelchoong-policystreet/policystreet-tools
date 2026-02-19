@@ -93,23 +93,26 @@ export function Sidebar() {
 
   return (
     <div className="fixed left-0 top-0 h-screen w-[110px] border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col items-center z-50">
-      <div className="border-b border-sidebar-border w-full p-4 flex flex-col items-center gap-1">
+      <Link
+        to="/"
+        className="border-b border-sidebar-border w-full p-4 flex flex-col items-center gap-1 hover:bg-sidebar-accent/10 transition-colors"
+      >
         <span className="text-sm font-bold italic text-sidebar-foreground leading-tight text-center">
           PolicyStreet
         </span>
         <span className="rounded-md bg-gradient-to-r from-blue-400 to-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">
           Tools
         </span>
-      </div>
+      </Link>
 
       <nav className="flex-1 w-full overflow-y-auto px-2 py-2 space-y-1">
-        <Section label="Tools" icon={FileText} defaultOpen>
+        <Section label="Tools" icon={FileText}>
           <NavItem to="/report" icon={FileText} label="Report Generator" isActive={isActive("/report")} />
         </Section>
 
         <div className="mx-2 my-1 border-t border-sidebar-border" />
 
-        <Section label="Database" icon={Database} defaultOpen>
+        <Section label="Database" icon={Database}>
           <NavItem to="/database?view=quotation" icon={Receipt} label="Quotation" isActive={isDatabaseQuotation()} />
           <NavItem to="/database?view=issuance" icon={BadgeCheck} label="Issuance" isActive={isDatabaseIssuance()} />
         </Section>
