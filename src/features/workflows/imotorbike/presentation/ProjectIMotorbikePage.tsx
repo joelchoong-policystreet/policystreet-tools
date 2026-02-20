@@ -1,4 +1,5 @@
 import { useParams } from "react-router-dom";
+import Papa from "papaparse";
 import { WORKFLOWS } from "@/features/layout/presentation/ProjectPanel";
 import { useIMotorbikeProjectView } from "./hooks/useIMotorbikeProjectView";
 import { ProjectPageHeader } from "./components/ProjectPageHeader";
@@ -47,6 +48,49 @@ export default function ProjectIMotorbikePage() {
       ? "No rejected rows. Rows skipped during CSV upload (e.g. no valid date) will appear here."
       : "No rows match the search.";
 
+  const handleExport = () => {
+    const dataToExport = view.searchFilteredRows.map(row => {
+      const vStatus = view.verificationStatuses[row.id] || "pending";
+      let finalStatus = "Incomplete";
+      if (row.total_amount_payable != null && String(row.total_amount_payable).trim() !== "") {
+        finalStatus = "Completed";
+      } else if (vStatus === "cancelled_billed") {
+        finalStatus = "Completed (Verified)";
+      } else if (vStatus === "cancelled_not_billed") {
+        finalStatus = "Issuance Cancelled";
+      } else {
+        finalStatus = "Verification Required";
+      }
+
+      return {
+        "Issue Date": row.issue_date || "",
+        "Client Name": row.client_name || "",
+        "Vehicle No": row.vehicle_no || "",
+        "Sum Insured (RM)": row.sum_insured != null ? Number(row.sum_insured).toFixed(2) : "",
+        "Premium": row.premium != null ? Number(row.premium).toFixed(2) : "",
+        "NCD": row.ncd != null ? Number(row.ncd).toFixed(2) : "",
+        "Total Base Premium": row.total_base_premium != null ? Number(row.total_base_premium).toFixed(2) : "",
+        "Total Extra Coverage": row.total_extra_coverage != null ? Number(row.total_extra_coverage).toFixed(2) : "",
+        "Gross Premium": row.gross_premium != null ? Number(row.gross_premium).toFixed(2) : "",
+        "Service Tax": row.service_tax != null ? Number(row.service_tax).toFixed(2) : "",
+        "Stamp Duty": row.stamp_duty != null ? Number(row.stamp_duty).toFixed(2) : "",
+        "Total Amount Payable (RM)": row.total_amount_payable != null ? Number(row.total_amount_payable).toFixed(2) : "",
+        "Insurer": row.insurer_billing_data?.insurer || "",
+        "Verification Status": finalStatus
+      };
+    });
+
+    const csv = Papa.unparse(dataToExport);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `imotorbike_issuance_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <main className="container py-8">
@@ -59,6 +103,7 @@ export default function ProjectIMotorbikePage() {
               lastUpdated={view.lastUpdated}
               fileInputRef={view.fileInputRef}
               onFileChange={view.handleIssuanceFileChange}
+              onExport={handleExport}
               searchQuery={view.searchQuery}
               onSearchChange={view.setSearchQuery}
               filterLabel={view.filterLabel}

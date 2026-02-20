@@ -1,4 +1,4 @@
-import { Filter, Upload } from "lucide-react";
+import { Filter, Upload, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TableSearch } from "./TableSearch";
 import {
@@ -15,6 +15,7 @@ type IssuanceTabFiltersProps = {
   lastUpdated: Date | null;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onExport: () => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   filterLabel: string;
@@ -31,6 +32,7 @@ export function IssuanceTabFilters({
   lastUpdated,
   fileInputRef,
   onFileChange,
+  onExport,
   searchQuery,
   onSearchChange,
   filterLabel,
@@ -52,6 +54,10 @@ export function IssuanceTabFilters({
         <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
           <Upload className="mr-2 h-4 w-4" />
           Upload CSV
+        </Button>
+        <Button variant="outline" size="sm" onClick={onExport}>
+          <Download className="mr-2 h-4 w-4" />
+          Export
         </Button>
         <input
           ref={fileInputRef as React.RefObject<HTMLInputElement>}
