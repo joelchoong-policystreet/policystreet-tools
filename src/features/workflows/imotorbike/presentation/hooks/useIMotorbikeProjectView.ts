@@ -228,9 +228,25 @@ export function useIMotorbikeProjectView() {
       .update({ verification_status: status })
       .eq("id", id)
       .then(({ error }) => {
-        if (error) console.error("Failed to save verification status:", error);
+        if (error) {
+          // Roll back the optimistic update if the save failed
+          setVerificationStatusOverrides((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
+          toast({
+            title: "Failed to save status",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          // Invalidate so the DB value is re-read on next fetch
+          queryClient.invalidateQueries({ queryKey: ["issuances", companyId, projectId] });
+        }
       });
   };
+
 
   const { data: insurerBillingRows = [], isLoading: isLoadingBilling, error: errorBilling } = useQuery({
     queryKey: ["insurer-billing", companyId, projectId],
