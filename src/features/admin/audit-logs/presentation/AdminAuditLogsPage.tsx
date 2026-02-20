@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ClipboardList, Search, Download, Settings } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/data/supabase/client";
 import { PageHeader } from "@/shared/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -41,21 +43,6 @@ const PAGE_SIZE = 10;
 const TIME_FILTERS = ["all", "7d", "30d", "90d"] as const;
 type TimeFilter = (typeof TIME_FILTERS)[number];
 
-const MOCK_LOGS: AuditLogEntry[] = [
-  { id: "1", time: new Date("2026-02-16T10:07:50"), user: "Jane Smith", eventType: "User", change: "User added", itemAffected: "alice.wong@policystreet.com" },
-  { id: "2", time: new Date("2026-02-16T09:45:22"), user: "John Doe", eventType: "User", change: "Status changed to deactivated", itemAffected: "Bob Chen" },
-  { id: "3", time: new Date("2026-02-16T09:12:00"), user: "Jane Smith", eventType: "Report", change: "Report generated", itemAffected: "Report: Q1 Summary" },
-  { id: "4", time: new Date("2026-02-15T16:30:00"), user: "Alice Wong", eventType: "Workflow", change: "CSV uploaded", itemAffected: "iMotorbike – 42 rows" },
-  { id: "5", time: new Date("2026-02-15T14:20:00"), user: "John Doe", eventType: "User", change: "User added", itemAffected: "carol.lee@policystreet.com" },
-  { id: "6", time: new Date("2026-02-15T11:00:00"), user: "Jane Smith", eventType: "User", change: "Status changed to active", itemAffected: "Bob Chen" },
-  { id: "7", time: new Date("2026-02-14T17:45:00"), user: "Bob Chen", eventType: "Login", change: "Signed in", itemAffected: "—" },
-  { id: "8", time: new Date("2026-02-14T10:00:00"), user: "Jane Smith", eventType: "Report", change: "Report generated", itemAffected: "Report: Affiliates Feb" },
-  { id: "9", time: new Date("2026-02-13T15:30:00"), user: "John Doe", eventType: "Workflow", change: "Filter applied", itemAffected: "iMotorbike – This month" },
-  { id: "10", time: new Date("2026-02-12T09:00:00"), user: "Alice Wong", eventType: "Login", change: "Signed in", itemAffected: "—" },
-  { id: "11", time: new Date("2026-02-11T14:22:00"), user: "Jane Smith", eventType: "User", change: "User added", itemAffected: "bob.chen@policystreet.com" },
-  { id: "12", time: new Date("2026-02-10T08:51:00"), user: "John Doe", eventType: "Report", change: "Report exported as PDF", itemAffected: "Report: Annual Summary" },
-];
-
 function filterByTime(entries: AuditLogEntry[], filter: TimeFilter): AuditLogEntry[] {
   if (filter === "all") return entries;
   const now = new Date();
@@ -71,8 +58,28 @@ export default function AdminAuditLogsPage() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
 
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: ["audit-logs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audit_logs")
+        .select("*")
+        .order("time", { ascending: false });
+      if (error) throw error;
+
+      return data.map((d) => ({
+        id: d.id,
+        time: new Date(d.time),
+        user: d.user_name,
+        eventType: d.event_type,
+        change: d.change,
+        itemAffected: d.item_affected,
+      }));
+    },
+  });
+
   const filteredLogs = useMemo(() => {
-    let list = filterByTime(MOCK_LOGS, timeFilter);
+    let list = filterByTime(logs, timeFilter);
     if (keyword.trim()) {
       const k = keyword.toLowerCase().trim();
       list = list.filter(
@@ -84,7 +91,7 @@ export default function AdminAuditLogsPage() {
       );
     }
     return list.sort((a, b) => b.time.getTime() - a.time.getTime());
-  }, [keyword, timeFilter]);
+  }, [logs, keyword, timeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
   const paginatedLogs = useMemo(() => {
@@ -185,49 +192,53 @@ export default function AdminAuditLogsPage() {
 
         <Card>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Time</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Event type</TableHead>
-                  <TableHead>Change</TableHead>
-                  <TableHead>Item affected</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedLogs.length === 0 ? (
+            {isLoading ? (
+              <div className="p-12 text-center text-muted-foreground">Loading audit logs…</div>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
-                      No audit log entries match your filters.
-                    </TableCell>
+                    <TableHead>Time</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Event type</TableHead>
+                    <TableHead>Change</TableHead>
+                    <TableHead>Item affected</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  paginatedLogs.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell className="text-muted-foreground whitespace-nowrap">
-                        {format(entry.time, "d MMM, yyyy HH:mm:ss")}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-primary font-medium">{entry.user}</span>
-                      </TableCell>
-                      <TableCell>{entry.eventType}</TableCell>
-                      <TableCell>{entry.change}</TableCell>
-                      <TableCell className="text-muted-foreground">{entry.itemAffected}</TableCell>
-                      <TableCell>
-                        <button
-                          type="button"
-                          className="text-sm text-primary hover:underline"
-                        >
-                          Show more
-                        </button>
+                </TableHeader>
+                <TableBody>
+                  {paginatedLogs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
+                        No audit log entries match your filters.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    paginatedLogs.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell className="text-muted-foreground whitespace-nowrap">
+                          {format(entry.time, "d MMM, yyyy HH:mm:ss")}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-primary font-medium">{entry.user}</span>
+                        </TableCell>
+                        <TableCell>{entry.eventType}</TableCell>
+                        <TableCell>{entry.change}</TableCell>
+                        <TableCell className="text-muted-foreground">{entry.itemAffected}</TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            className="text-sm text-primary hover:underline"
+                          >
+                            Show more
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </main>

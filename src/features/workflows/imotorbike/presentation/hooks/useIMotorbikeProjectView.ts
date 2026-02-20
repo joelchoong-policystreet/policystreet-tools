@@ -175,12 +175,9 @@ export function useIMotorbikeProjectView() {
   const [activeTab, setActiveTab] = useState<TabKind>("issuance");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [issuanceFilter, setIssuanceFilter] = useState<"all" | "incomplete" | "cancelled" | "complete">("complete");
-  const [verificationStatuses, setVerificationStatuses] = useState<Record<string, string>>({});
 
-  const handleVerificationStatusChange = (id: string, status: string) => {
-    setVerificationStatuses((prev) => ({ ...prev, [id]: status }));
-  };
   const [filterPreset, setFilterPreset] = useState<FilterPreset>("all_time");
+
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
   const [selectedInsurer, setSelectedInsurer] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -212,6 +209,28 @@ export function useIMotorbikeProjectView() {
     queryFn: () => fetchIssuancesForProject(companyId!, projectId!),
     enabled: activeTab === "issuance" && !!companyId && !!projectId,
   });
+
+  // Seed from DB rows, then allow local overrides for instant UI feedback
+  const [verificationStatusOverrides, setVerificationStatusOverrides] = useState<Record<string, string>>({});
+
+  const verificationStatuses = useMemo<Record<string, string>>(() => {
+    const base: Record<string, string> = {};
+    rows.forEach((r) => {
+      base[r.id] = (r as any).verification_status || "pending";
+    });
+    return { ...base, ...verificationStatusOverrides };
+  }, [rows, verificationStatusOverrides]);
+
+  const handleVerificationStatusChange = (id: string, status: string) => {
+    setVerificationStatusOverrides((prev) => ({ ...prev, [id]: status }));
+    supabase
+      .from("imotorbike_billing_normalised" as any)
+      .update({ verification_status: status })
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) console.error("Failed to save verification status:", error);
+      });
+  };
 
   const { data: insurerBillingRows = [], isLoading: isLoadingBilling, error: errorBilling } = useQuery({
     queryKey: ["insurer-billing", companyId, projectId],
@@ -579,6 +598,14 @@ export function useIMotorbikeProjectView() {
           const { error: err } = await supabase.from("insurer_billing_data").insert(rows);
           if (err) throw err;
           importedCount = rows.length;
+
+          const { data: { user } } = await supabase.auth.getUser();
+          await supabase.from("audit_logs").insert({
+            user_name: user?.email || "Unknown User",
+            event_type: "Workflow",
+            change: "CSV uploaded (Insurer Billing)",
+            item_affected: `${projectId || 'General'} - ${importedCount} rows`,
+          });
         }
         await queryClient.invalidateQueries({ queryKey: ["insurer-billing", companyId, projectId] });
       }

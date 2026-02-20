@@ -2,21 +2,25 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/features/auth/presentation/useAuth";
 import { Sidebar } from "@/features/layout/presentation/Sidebar";
 import { ProjectPanel } from "@/features/layout/presentation/ProjectPanel";
-import HomePage from "@/features/home/presentation/HomePage";
-import ReportPage from "@/features/report/presentation/ReportPage";
-import LoginPage from "@/features/auth/presentation/LoginPage";
-import WorkflowDefaultPage from "@/features/workflows/presentation/WorkflowDefaultPage";
-import ProjectIMotorbikePage from "@/features/workflows/imotorbike/presentation/ProjectIMotorbikePage";
-import AdminUsersPage from "@/features/admin/users/presentation/AdminUsersPage";
-import AdminRolesPage from "@/features/admin/roles/presentation/AdminRolesPage";
-import AdminAuditLogsPage from "@/features/admin/audit-logs/presentation/AdminAuditLogsPage";
-import DatabasePage from "@/features/database/presentation/DatabasePage";
-import ProfilePage from "@/features/profile/presentation/ProfilePage";
-import NotFoundPage from "@/features/not-found/presentation/NotFoundPage";
+import { LoadingFallback } from "@/shared/components/LoadingFallback";
+
+// Lazy-loaded routes
+const HomePage = React.lazy(() => import("@/features/home/presentation/HomePage"));
+const ReportPage = React.lazy(() => import("@/features/report/presentation/ReportPage"));
+const LoginPage = React.lazy(() => import("@/features/auth/presentation/LoginPage"));
+const WorkflowDefaultPage = React.lazy(() => import("@/features/workflows/presentation/WorkflowDefaultPage"));
+const ProjectIMotorbikePage = React.lazy(() => import("@/features/workflows/imotorbike/presentation/ProjectIMotorbikePage"));
+const AdminUsersPage = React.lazy(() => import("@/features/admin/users/presentation/AdminUsersPage"));
+const AdminRolesPage = React.lazy(() => import("@/features/admin/roles/presentation/AdminRolesPage"));
+const AdminAuditLogsPage = React.lazy(() => import("@/features/admin/audit-logs/presentation/AdminAuditLogsPage"));
+const DatabasePage = React.lazy(() => import("@/features/database/presentation/DatabasePage"));
+const ProfilePage = React.lazy(() => import("@/features/profile/presentation/ProfilePage"));
+const NotFoundPage = React.lazy(() => import("@/features/not-found/presentation/NotFoundPage"));
 
 const SIDEBAR_WIDTH = 110;
 const PROJECT_PANEL_WIDTH = 220;
@@ -44,20 +48,22 @@ function AppLayout() {
           className="min-h-screen flex-1 transition-[margin] duration-200"
           style={{ marginLeft: mainMarginLeft, width: `calc(100% - ${mainMarginLeft}px)` }}
         >
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/report" element={<ReportPage />} />
-            <Route path="/database" element={<DatabasePage />} />
-            <Route path="/workflows/imotorbike" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
-            <Route path="/workflows/imotorbike/:projectId" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
-            <Route path="/workflows/:workflowId" element={<WorkflowDefaultPage />} />
-            <Route path="/workflows/:workflowId/:projectId" element={<ProjectIMotorbikePage />} />
-            <Route path="/admin/users" element={<AdminUsersPage />} />
-            <Route path="/admin/roles" element={<AdminRolesPage />} />
-            <Route path="/admin/audit-logs" element={<AdminAuditLogsPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/report" element={<ReportPage />} />
+              <Route path="/database" element={<DatabasePage />} />
+              <Route path="/workflows/imotorbike" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
+              <Route path="/workflows/imotorbike/:projectId" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
+              <Route path="/workflows/:workflowId" element={<WorkflowDefaultPage />} />
+              <Route path="/workflows/:workflowId/:projectId" element={<ProjectIMotorbikePage />} />
+              <Route path="/admin/users" element={<AdminUsersPage />} />
+              <Route path="/admin/roles" element={<AdminRolesPage />} />
+              <Route path="/admin/audit-logs" element={<AdminAuditLogsPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
         </div>
       </div>
     </ProtectedRoute>
@@ -92,7 +98,11 @@ function LoginGuard() {
       </div>
     );
   if (user) return <Navigate to="/" replace />;
-  return <LoginPage />;
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <LoginPage />
+    </Suspense>
+  );
 }
 
 export default App;

@@ -1,5 +1,6 @@
 import { useParams } from "react-router-dom";
 import Papa from "papaparse";
+import { supabase } from "@/data/supabase/client";
 import { WORKFLOWS } from "@/features/layout/presentation/ProjectPanel";
 import { useIMotorbikeProjectView } from "./hooks/useIMotorbikeProjectView";
 import { ProjectPageHeader } from "./components/ProjectPageHeader";
@@ -48,7 +49,7 @@ export default function ProjectIMotorbikePage() {
       ? "No rejected rows. Rows skipped during CSV upload (e.g. no valid date) will appear here."
       : "No rows match the search.";
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const dataToExport = view.searchFilteredRows.map(row => {
       const vStatus = view.verificationStatuses[row.id] || "pending";
       let finalStatus = "Incomplete";
@@ -89,6 +90,15 @@ export default function ProjectIMotorbikePage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // Audit Log tracking
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("audit_logs").insert({
+      user_name: user?.email || "Unknown User",
+      event_type: "Workflow",
+      change: "CSV exported",
+      item_affected: `${projectId || 'General'} - ${dataToExport.length} rows`
+    });
   };
 
   return (

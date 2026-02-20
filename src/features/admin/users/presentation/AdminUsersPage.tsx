@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users as UsersIcon, UserPlus, Copy, Check } from "lucide-react";
 import { supabase } from "@/data/supabase/client";
+import { useAuth } from "@/features/auth/presentation/useAuth";
 import type { Database } from "@/data/supabase/types";
 import { PageHeader } from "@/shared/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -84,6 +85,7 @@ async function fetchUsers(): Promise<User[]> {
 }
 
 export default function AdminUsersPage() {
+  const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const { data: users = [], isLoading, error } = useQuery({ queryKey: ["admin-users"], queryFn: fetchUsers });
 
@@ -254,7 +256,7 @@ export default function AdminUsersPage() {
                           <Switch
                             checked={user.status === "active"}
                             onCheckedChange={() => toggleUserStatus(user.id, user.status)}
-                            disabled={updateStatusMutation.isPending}
+                            disabled={updateStatusMutation.isPending || user.id === currentUser?.id}
                           />
                           <span className="text-sm text-muted-foreground">
                             {user.status === "active" ? "Active" : "Deactivated"}
