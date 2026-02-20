@@ -26,6 +26,9 @@ function toDateKey(value: string | null | undefined): string {
 export type TabKind = "issuance" | "insurer_billing" | "ocr" | "errors";
 export type InsurerBillingRow = IntTables<"insurer_billing_data">;
 export type OcrRow = Tables<"ocr_data_table">;
+export type IssuanceRow = IntTables<"imotorbike_billing_normalised"> & {
+  insurer_billing_data: { insurer: string } | null;
+};
 export type UploadErrorRow = IntTables<"upload_errors">;
 
 function parseNumeric(s: string | null): number | null {
@@ -36,18 +39,24 @@ function parseNumeric(s: string | null): number | null {
 
 const PAGE_SIZE = 50;
 
-function getBefore6PMCount(rows: IMotorbikeRow[]): number {
+function getCompleteDataCount(rows: IssuanceRow[], verificationStatuses: Record<string, string>): number {
   return rows.filter((r) => {
-    const d = parsePurchasedDateTime(r.purchasedDate);
-    return d ? d.getHours() < 18 : false;
+    const isCompleteAmount = r.total_amount_payable != null && String(r.total_amount_payable).trim() !== "";
+    const isVerifiedStatus = verificationStatuses[r.id] === "cancelled_billed";
+    return isCompleteAmount || isVerifiedStatus;
   }).length;
 }
 
-function getAfter6PMCount(rows: IMotorbikeRow[]): number {
+function getIncompleteDataCount(rows: IssuanceRow[], verificationStatuses: Record<string, string>): number {
   return rows.filter((r) => {
-    const d = parsePurchasedDateTime(r.purchasedDate);
-    return d ? d.getHours() >= 18 : false;
+    const isEmptyAmount = r.total_amount_payable == null || String(r.total_amount_payable).trim() === "";
+    const isPendingStatus = !verificationStatuses[r.id] || verificationStatuses[r.id] === "pending";
+    return isEmptyAmount && isPendingStatus;
   }).length;
+}
+
+function getCancelledDataCount(rows: IssuanceRow[], verificationStatuses: Record<string, string>): number {
+  return rows.filter((r) => verificationStatuses[r.id] === "cancelled_not_billed").length;
 }
 
 const PROJECT_COMPANY_NAMES: Record<string, string> = {
@@ -72,6 +81,31 @@ async function fetchCompanyForProject(projectId: string): Promise<{ id: string; 
   }
 }
 
+async function fetchIssuancesForProject(
+  companyId: string,
+  projectId: string
+): Promise<IssuanceRow[]> {
+  try {
+    const filter =
+      projectId === "imotorbike"
+        ? "project.eq.imotorbike,project.is.null"
+        : `project.eq.${projectId}`;
+    const { data, error } = await supabase
+      .from("imotorbike_billing_normalised" as any)
+      .select(`
+        *,
+        insurer_billing_data(insurer)
+      `)
+      .eq("company_id", companyId)
+      .or(filter)
+      .order("issue_date", { ascending: false });
+    if (error) return [];
+    return (data ?? []) as any as IssuanceRow[];
+  } catch {
+    return [];
+  }
+}
+
 async function fetchInsurerBillingForProject(
   companyId: string,
   projectId: string
@@ -82,13 +116,13 @@ async function fetchInsurerBillingForProject(
         ? "project.eq.imotorbike,project.is.null"
         : `project.eq.${projectId}`;
     const { data, error } = await supabase
-      .from("insurer_billing_data")
+      .from("insurer_billing_data" as any)
       .select("*")
       .eq("company_id", companyId)
       .or(filter)
       .order("issue_date", { ascending: true, nullsFirst: false });
     if (error) return [];
-    return (data ?? []) as InsurerBillingRow[];
+    return (data ?? []) as any as InsurerBillingRow[];
   } catch {
     return [];
   }
@@ -122,13 +156,13 @@ async function fetchUploadErrorsForProject(
 ): Promise<UploadErrorRow[]> {
   try {
     const { data, error } = await supabase
-      .from("upload_errors")
+      .from("upload_errors" as any)
       .select("*")
       .eq("company_id", companyId)
       .eq("workflow", projectId)
       .order("created_at", { ascending: false });
     if (error) return [];
-    return data ?? [];
+    return data as any as UploadErrorRow[];
   } catch {
     return [];
   }
@@ -139,8 +173,13 @@ export function useIMotorbikeProjectView() {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<TabKind>("issuance");
-  const [rows, setRows] = useState<IMotorbikeRow[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [issuanceFilter, setIssuanceFilter] = useState<"all" | "incomplete" | "cancelled" | "complete">("complete");
+  const [verificationStatuses, setVerificationStatuses] = useState<Record<string, string>>({});
+
+  const handleVerificationStatusChange = (id: string, status: string) => {
+    setVerificationStatuses((prev) => ({ ...prev, [id]: status }));
+  };
   const [filterPreset, setFilterPreset] = useState<FilterPreset>("all_time");
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
   const [selectedInsurer, setSelectedInsurer] = useState<string | null>(null);
@@ -168,6 +207,12 @@ export function useIMotorbikeProjectView() {
   });
   const companyId = projectCompany?.id ?? null;
 
+  const { data: rows = [], isLoading: isLoadingIssuance } = useQuery({
+    queryKey: ["issuances", companyId, projectId],
+    queryFn: () => fetchIssuancesForProject(companyId!, projectId!),
+    enabled: activeTab === "issuance" && !!companyId && !!projectId,
+  });
+
   const { data: insurerBillingRows = [], isLoading: isLoadingBilling, error: errorBilling } = useQuery({
     queryKey: ["insurer-billing", companyId, projectId],
     queryFn: () => fetchInsurerBillingForProject(companyId!, projectId!),
@@ -190,13 +235,13 @@ export function useIMotorbikeProjectView() {
   useEffect(() => setCurrentPage(1), [searchQuery, billingSearchQuery, ocrSearchQuery, errorsSearchQuery]);
 
   const dateFilteredRows = useMemo(
-    () => filterByDateRange(rows, filterPreset, customRange, (r) => parsePurchasedDateTime(r.purchasedDate)),
+    () => filterByDateRange(rows, filterPreset, customRange, (r) => r.issue_date ? new Date(r.issue_date) : null),
     [rows, filterPreset, customRange]
   );
 
   const insurerOptions = useMemo(() => {
-    const set = new Set(dateFilteredRows.map((r) => r.insurer).filter(Boolean));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    const set = new Set(dateFilteredRows.map((r) => r.insurer_billing_data?.insurer).filter(Boolean));
+    return Array.from(set).sort((a, b) => (a ?? "").localeCompare(b ?? ""));
   }, [dateFilteredRows]);
 
   useEffect(() => {
@@ -207,27 +252,40 @@ export function useIMotorbikeProjectView() {
 
   const filteredRows = useMemo(() => {
     let filtered = dateFilteredRows;
-    if (selectedInsurer) filtered = filtered.filter((r) => r.insurer === selectedInsurer);
+    if (selectedInsurer) filtered = filtered.filter((r) => r.insurer_billing_data?.insurer === selectedInsurer);
     return [...filtered].sort((a, b) => {
-      const da = parsePurchasedDateTime(a.purchasedDate)?.getTime() ?? 0;
-      const db = parsePurchasedDateTime(b.purchasedDate)?.getTime() ?? 0;
+      const da = a.issue_date ? new Date(a.issue_date).getTime() : 0;
+      const db = b.issue_date ? new Date(b.issue_date).getTime() : 0;
       return sortAsc ? da - db : db - da;
     });
   }, [dateFilteredRows, selectedInsurer, sortAsc]);
 
   const searchFilteredRows = useMemo(() => {
+    let base = filteredRows;
+    if (issuanceFilter === "incomplete") {
+      base = base.filter((r) => {
+        const isEmptyAmount = r.total_amount_payable == null || String(r.total_amount_payable).trim() === "";
+        const isPendingStatus = !verificationStatuses[r.id] || verificationStatuses[r.id] === "pending";
+        return isEmptyAmount && isPendingStatus;
+      });
+    } else if (issuanceFilter === "cancelled") {
+      base = base.filter((r) => verificationStatuses[r.id] === "cancelled_not_billed");
+    } else if (issuanceFilter === "complete") {
+      base = base.filter((r) => {
+        const isCompleteAmount = r.total_amount_payable != null && String(r.total_amount_payable).trim() !== "";
+        const isVerifiedStatus = verificationStatuses[r.id] === "cancelled_billed";
+        return isCompleteAmount || isVerifiedStatus;
+      });
+    }
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return filteredRows;
-    return filteredRows.filter(
+    if (!q) return base;
+    return base.filter(
       (r) =>
-        (r.customer ?? "").toLowerCase().includes(q) ||
-        (r.plateNo ?? "").toLowerCase().includes(q) ||
-        (r.instantQuotation ?? "").toLowerCase().includes(q) ||
-        (r.insurer ?? "").toLowerCase().includes(q) ||
-        (r.coverage ?? "").toLowerCase().includes(q) ||
-        (r.partner ?? "").toLowerCase().includes(q)
+        (r.client_name ?? "").toLowerCase().includes(q) ||
+        (r.vehicle_no ?? "").toLowerCase().includes(q) ||
+        (r.insurer_billing_data?.insurer ?? "").toLowerCase().includes(q)
     );
-  }, [filteredRows, searchQuery]);
+  }, [filteredRows, searchQuery, issuanceFilter, verificationStatuses]);
 
   const totalPages = Math.max(1, Math.ceil(searchFilteredRows.length / PAGE_SIZE));
   const paginatedRows = useMemo(() => {
@@ -235,9 +293,10 @@ export function useIMotorbikeProjectView() {
     return searchFilteredRows.slice(start, start + PAGE_SIZE);
   }, [searchFilteredRows, currentPage]);
 
-  const before6PM = useMemo(() => getBefore6PMCount(searchFilteredRows), [searchFilteredRows]);
-  const after6PM = useMemo(() => getAfter6PMCount(searchFilteredRows), [searchFilteredRows]);
-  const totalIssuances = searchFilteredRows.length;
+  const completeData = useMemo(() => getCompleteDataCount(filteredRows, verificationStatuses), [filteredRows, verificationStatuses]);
+  const incompleteData = useMemo(() => getIncompleteDataCount(filteredRows, verificationStatuses), [filteredRows, verificationStatuses]);
+  const cancelledData = useMemo(() => getCancelledDataCount(filteredRows, verificationStatuses), [filteredRows, verificationStatuses]);
+  const totalIssuances = filteredRows.length;
 
   const getBillingIssueDate = (r: InsurerBillingRow): Date | null => {
     const d = r.issue_date ?? r.transaction_date;
@@ -365,17 +424,7 @@ export function useIMotorbikeProjectView() {
   const filterLabel = getFilterLabel(filterPreset, customRange);
 
   const handleIssuanceFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const data = await parseIMotorbikeCSV(file);
-      setRows(data);
-      setLastUpdated(new Date());
-      setCurrentPage(1);
-      toast({ title: "Upload successful", description: `${data.length} row(s) imported.` });
-    } catch (err) {
-      console.error(err);
-    }
+    toast({ title: "Issuance Table", description: "Issuance data flows automatically from Supabase.", variant: "default" });
     e.target.value = "";
   };
 
@@ -477,48 +526,48 @@ export function useIMotorbikeProjectView() {
       };
       const toInsert: IntTablesInsert<"insurer_billing_data">[] = validRows
         .map((raw) => ({
-        company_id: companyId,
-        project: projectId ?? null,
-        insurer: getInsurer(raw)!,
-        row_number: get(raw, "no.", "no") ?? null,
-        policy_no: get(raw, "policy no.", "policy no", "policy_no") ?? null,
-        client_name: get(raw, "name of insured", "client", "client_name") ?? null,
-        vehicle_no: get(raw, "vehicle no", "vehicle no.", "vehicle_no") ?? null,
-        status: get(raw, "status", "trx status", "trx_status") ?? null,
-        sum_insured: parseNumeric(getSumInsured(raw)),
-        cn_no: get(raw, "c/n no.", "c/n no", "cn_no") ?? null,
-        account_no: get(raw, "account no.", "account no", "account_no") ?? null,
-        issue_date: toISODateOnly(getDateForIssue(raw)),
-        issued_by: get(raw, "issued by", "issued_by") ?? null,
-        type: get(raw, "type") ?? null,
-        effective_date: toISODateOnly(get(raw, "effective date", "effective_date")),
-        expiry_date: toISODateOnly(get(raw, "expiry date", "expiry_date")),
-        vehicle_type: get(raw, "vehicle type", "vehicle_type") ?? null,
-        coverage_type: get(raw, "coverage type", "coverage_type") ?? null,
-        chassis: get(raw, "chassis") ?? null,
-        jpj_status: get(raw, "jpj status", "jpj_status") ?? null,
-        gross_premium: parseNumeric(get(raw, "gross premium (rm)", "gross premium", "gross_premium")),
-        rebate: parseNumeric(get(raw, "rebate (rm)", "rebate")),
-        gst: parseNumeric(get(raw, "gst (rm)", "gst")),
-        service_tax: parseNumeric(get(raw, "serv. tax (rm)", "serv. tax", "service_tax")),
-        stamp: parseNumeric(get(raw, "stamp (rm)", "stamp")),
-        premium_due: parseNumeric(get(raw, "premium due (rm)", "premium due", "premium_due")),
-        commission: parseNumeric(get(raw, "commission (rm)", "commission")),
-        gst_commission: parseNumeric(get(raw, "gst commission (rm)", "gst commission", "gst_commission")),
-        nett_premium: parseNumeric(get(raw, "nett premium (rm)", "nett premium", "nett_premium")),
-        amount_payable: parseNumeric(get(raw, "amount payable (rounded) (rm)", "amount payable", "amount_payable")),
-        ptv_amount: parseNumeric(get(raw, "ptv amount", "ptv_amount")),
-        premium_due_after_ptv: parseNumeric(get(raw, "premium due after ptv", "premium_due_after_ptv")),
-        agent_code: get(raw, "agent code", "agent_code") ?? null,
-        user_id: get(raw, "userid", "user_id") ?? null,
-        transaction_date: toISODateOnly(getDateForIssue(raw)),
-        transaction_time: get(raw, "time") ?? null,
-        class_product: get(raw, "class & product", "class_product") ?? null,
-        quotation: get(raw, "quotation") ?? null,
-        repl_prev_no: get(raw, "repl/prev no.", "repl/prev no", "repl_prev_no") ?? null,
-        trx_status: get(raw, "trx status", "trx_status") ?? null,
-        total_amount: parseNumeric(get(raw, "totalamt", "total_amount")),
-      }));
+          company_id: companyId,
+          project: projectId ?? null,
+          insurer: getInsurer(raw)!,
+          row_number: get(raw, "no.", "no") ?? null,
+          policy_no: get(raw, "policy no.", "policy no", "policy_no") ?? null,
+          client_name: get(raw, "name of insured", "client", "client_name") ?? null,
+          vehicle_no: get(raw, "vehicle no", "vehicle no.", "vehicle_no") ?? null,
+          status: get(raw, "status", "trx status", "trx_status") ?? null,
+          sum_insured: parseNumeric(getSumInsured(raw)),
+          cn_no: get(raw, "c/n no.", "c/n no", "cn_no") ?? null,
+          account_no: get(raw, "account no.", "account no", "account_no") ?? null,
+          issue_date: toISODateOnly(getDateForIssue(raw)),
+          issued_by: get(raw, "issued by", "issued_by") ?? null,
+          type: get(raw, "type") ?? null,
+          effective_date: toISODateOnly(get(raw, "effective date", "effective_date")),
+          expiry_date: toISODateOnly(get(raw, "expiry date", "expiry_date")),
+          vehicle_type: get(raw, "vehicle type", "vehicle_type") ?? null,
+          coverage_type: get(raw, "coverage type", "coverage_type") ?? null,
+          chassis: get(raw, "chassis") ?? null,
+          jpj_status: get(raw, "jpj status", "jpj_status") ?? null,
+          gross_premium: parseNumeric(get(raw, "gross premium (rm)", "gross premium", "gross_premium")),
+          rebate: parseNumeric(get(raw, "rebate (rm)", "rebate")),
+          gst: parseNumeric(get(raw, "gst (rm)", "gst")),
+          service_tax: parseNumeric(get(raw, "serv. tax (rm)", "serv. tax", "service_tax")),
+          stamp: parseNumeric(get(raw, "stamp (rm)", "stamp")),
+          premium_due: parseNumeric(get(raw, "premium due (rm)", "premium due", "premium_due")),
+          commission: parseNumeric(get(raw, "commission (rm)", "commission")),
+          gst_commission: parseNumeric(get(raw, "gst commission (rm)", "gst commission", "gst_commission")),
+          nett_premium: parseNumeric(get(raw, "nett premium (rm)", "nett premium", "nett_premium")),
+          amount_payable: parseNumeric(get(raw, "amount payable (rounded) (rm)", "amount payable", "amount_payable")),
+          ptv_amount: parseNumeric(get(raw, "ptv amount", "ptv_amount")),
+          premium_due_after_ptv: parseNumeric(get(raw, "premium due after ptv", "premium_due_after_ptv")),
+          agent_code: get(raw, "agent code", "agent_code") ?? null,
+          user_id: get(raw, "userid", "user_id") ?? null,
+          transaction_date: toISODateOnly(getDateForIssue(raw)),
+          transaction_time: get(raw, "time") ?? null,
+          class_product: get(raw, "class & product", "class_product") ?? null,
+          quotation: get(raw, "quotation") ?? null,
+          repl_prev_no: get(raw, "repl/prev no.", "repl/prev no", "repl_prev_no") ?? null,
+          trx_status: get(raw, "trx status", "trx_status") ?? null,
+          total_amount: parseNumeric(get(raw, "totalamt", "total_amount")),
+        }));
       let importedCount = 0;
       if (toInsert.length > 0) {
         const rows = toInsert
@@ -542,7 +591,7 @@ export function useIMotorbikeProjectView() {
           rejection_reason: getRejectionReason(raw),
           file_name: file.name,
         }));
-        await supabase.from("upload_errors").insert(errorInserts);
+        await supabase.from("upload_errors" as any).insert(errorInserts);
         await queryClient.invalidateQueries({ queryKey: ["upload-errors", companyId, projectId] });
       }
       const skippedCount = rejectedRows.length;
@@ -574,7 +623,7 @@ export function useIMotorbikeProjectView() {
     try {
       const text = await file.text();
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-      const csvToDb: Record<string, keyof IntTablesInsert<"ocr_data_table">> = {
+      const csvToDb: Record<string, any> = {
         "date issue": "date_issue",
         date_issue: "date_issue",
         "vehicle no": "vehicle_no",
@@ -605,7 +654,7 @@ export function useIMotorbikeProjectView() {
         (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
       );
       const built = ocrDataRows.map((raw) => {
-        const row: IntTablesInsert<"ocr_data_table"> = {
+        const row: any = {
           company_id: companyId,
           project: projectId,
         };
@@ -618,7 +667,7 @@ export function useIMotorbikeProjectView() {
         }
         return { raw, row };
       });
-      const hasInsurer = ({ row }: { row: IntTablesInsert<"ocr_data_table"> }) =>
+      const hasInsurer = ({ row }: { row: any }) =>
         (row as Record<string, unknown>).insurer != null &&
         String((row as Record<string, unknown>).insurer).trim() !== "";
       const normalizeDedupPart = (s: string) =>
@@ -633,7 +682,7 @@ export function useIMotorbikeProjectView() {
         }
         return "";
       };
-      const getDedupKey = (item: { row: IntTablesInsert<"ocr_data_table">; raw: Record<string, string> }) => {
+      const getDedupKey = (item: { row: any; raw: Record<string, string> }) => {
         const r = item.row as Record<string, unknown>;
         const rawNorm = Object.fromEntries(
           Object.entries(item.raw).map(([k, v]) => [norm(k), v])
@@ -694,7 +743,7 @@ export function useIMotorbikeProjectView() {
           rejection_reason: reason,
           file_name: file.name,
         }));
-        await supabase.from("upload_errors").insert(errorInserts);
+        await supabase.from("upload_errors" as any).insert(errorInserts);
       }
       await queryClient.invalidateQueries({ queryKey: ["ocr", companyId, projectId] });
       if (rejectedRows.length > 0) {
@@ -741,8 +790,13 @@ export function useIMotorbikeProjectView() {
     companyId,
     filterLabel,
     pageSize: PAGE_SIZE,
+    issuanceFilter,
+    setIssuanceFilter,
+    verificationStatuses,
+    handleVerificationStatusChange,
     // Issuance tab
     rows,
+    isLoadingIssuance,
     lastUpdated,
     insurerOptions,
     searchQuery,
@@ -750,8 +804,9 @@ export function useIMotorbikeProjectView() {
     paginatedRows,
     searchFilteredRows,
     totalPages,
-    before6PM,
-    after6PM,
+    completeData,
+    incompleteData,
+    cancelledData,
     totalIssuances,
     handleIssuanceFileChange,
     // Billing tab

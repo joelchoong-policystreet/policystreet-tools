@@ -71,10 +71,13 @@ export default function ProjectIMotorbikePage() {
               insurerOptions={view.insurerOptions}
             />
             <ProjectStatsCards
-              before6PM={view.before6PM}
-              after6PM={view.after6PM}
+              completeCount={view.completeData}
+              incompleteCount={view.incompleteData}
+              cancelledCount={view.cancelledData}
               total={view.totalIssuances}
               totalLabel="Total Issuances"
+              onFilterChange={view.setIssuanceFilter}
+              activeFilter={view.issuanceFilter}
             />
             <IssuanceTabTable
               rows={view.paginatedRows}
@@ -86,6 +89,8 @@ export default function ProjectIMotorbikePage() {
               totalItems={view.searchFilteredRows.length}
               pageSize={view.pageSize}
               onPageChange={view.setCurrentPage}
+              verificationStatuses={view.verificationStatuses}
+              onVerificationStatusChange={view.handleVerificationStatusChange}
             />
           </>
         )}

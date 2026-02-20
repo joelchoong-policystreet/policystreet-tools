@@ -36,7 +36,7 @@ export default function LoginPage() {
           <div>
             <span className="text-2xl font-bold text-primary">PolicyStreet</span>
             <span className="ml-2 rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
-              CRM
+              Tools
             </span>
           </div>
 
