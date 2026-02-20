@@ -534,15 +534,45 @@ export function useIMotorbikeProjectView() {
         const v = getInsurer(raw);
         return v != null && String(v).trim() !== "";
       };
-      const validRows = dataRows.filter((raw) => isValidDate(raw) && hasInsurer(raw));
-      const rejectedRows = dataRows.filter((raw) => !isValidDate(raw) || !hasInsurer(raw));
-      const getRejectionReason = (raw: Record<string, string>) => {
+      // Gather plate+date keys already in the DB for this company+project
+      const normPlate = (s: string | null | undefined) =>
+        String(s ?? "").toLowerCase().trim().replace(/\s+/g, "");
+      const { data: existingBilling } = await supabase
+        .from("insurer_billing_data")
+        .select("vehicle_no, issue_date")
+        .eq("company_id", companyId);
+      const existingBillingKeys = new Set<string>();
+      for (const r of existingBilling ?? []) {
+        const v = normPlate((r as any).vehicle_no);
+        const d = String((r as any).issue_date ?? "").trim();
+        if (v && d) existingBillingKeys.add(`${v}|${d}`);
+      }
+      const seenInBatch = new Set<string>();
+
+      const validRows: Record<string, string>[] = [];
+      const rejectedRows: { raw: Record<string, string>; reason: string }[] = [];
+
+      for (const raw of dataRows) {
         const noDate = !isValidDate(raw);
         const noInsurer = !hasInsurer(raw);
-        if (noDate && noInsurer) return "No valid date; Missing insurer";
-        if (noDate) return "No valid date";
-        return "Missing insurer";
-      };
+        if (noDate || noInsurer) {
+          const reason =
+            noDate && noInsurer ? "No valid date; Missing insurer" :
+              noDate ? "No valid date" : "Missing insurer";
+          rejectedRows.push({ raw, reason });
+          continue;
+        }
+        const v = normPlate(get(raw, "vehicle no", "vehicle no.", "vehicle_no"));
+        const d = toISODateOnly(getDateForIssue(raw)) ?? "";
+        const key = `${v}|${d}`;
+        if (v && d && (existingBillingKeys.has(key) || seenInBatch.has(key))) {
+          rejectedRows.push({ raw, reason: "Duplicate vehicle + date" });
+          continue;
+        }
+        if (v && d) seenInBatch.add(key);
+        validRows.push(raw);
+      }
+
       const toInsert: IntTablesInsert<"insurer_billing_data">[] = validRows
         .map((raw) => ({
           company_id: companyId,
@@ -610,12 +640,12 @@ export function useIMotorbikeProjectView() {
         await queryClient.invalidateQueries({ queryKey: ["insurer-billing", companyId, projectId] });
       }
       if (rejectedRows.length > 0 && companyId) {
-        const errorInserts = rejectedRows.map((raw) => ({
+        const errorInserts = rejectedRows.map(({ raw, reason }) => ({
           company_id: companyId,
           source: "insurer_billing",
           workflow: projectId ?? null,
           raw_data: raw as IntTables<"upload_errors">["raw_data"],
-          rejection_reason: getRejectionReason(raw),
+          rejection_reason: reason,
           file_name: file.name,
         }));
         await supabase.from("upload_errors" as any).insert(errorInserts);

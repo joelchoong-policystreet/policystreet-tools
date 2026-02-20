@@ -7,6 +7,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 import { TablePagination } from "@/shared/components/TablePagination";
 import { TableSearch } from "./TableSearch";
 import type { UploadErrorRow } from "../hooks/useIMotorbikeProjectView";
@@ -62,6 +64,18 @@ export function ErrorsTabContent({
           onChange={onSearchChange}
           placeholder="Search rejected data…"
         />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+              <Info className="h-3.5 w-3.5" />
+              What are errors?
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-[280px] text-xs">
+            <p className="font-medium mb-1">Rejected rows from CSV uploads</p>
+            <p>Rows are skipped during import and appear here when they have a <strong>missing or invalid issue date</strong>, a <strong>missing insurer name</strong>, or a <strong>duplicate vehicle plate + date</strong> already in the database. Review and correct the source CSV before re-uploading.</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
       <Card>
         {error && (
