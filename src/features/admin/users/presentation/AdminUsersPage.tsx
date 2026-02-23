@@ -109,32 +109,29 @@ export default function AdminUsersPage() {
       role: UserRole;
       password: string;
     }) => {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password,
-        options: { emailRedirectTo: undefined },
-      });
-      if (signUpError) throw signUpError;
-      const newUserId = signUpData.user?.id;
-      if (!newUserId) throw new Error("User created but no id returned");
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
 
-      const { error: profileError } = await supabase.from("profiles").upsert(
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-create-user`,
         {
-          id: newUserId,
-          name: displayName || trimmedEmail.split("@")[0] || "—",
-          email: trimmedEmail,
-          status: "active",
-          must_change_password: true,
-        },
-        { onConflict: "id" }
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            email: trimmedEmail,
+            name: displayName || trimmedEmail.split("@")[0] || "—",
+            role: mapRoleToAppRole(userRole),
+            password,
+          }),
+        }
       );
-      if (profileError) throw profileError;
 
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        user_id: newUserId,
-        role: mapRoleToAppRole(userRole),
-      });
-      if (roleError) throw roleError;
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Failed to create user");
 
       return { password, email: trimmedEmail };
     },
