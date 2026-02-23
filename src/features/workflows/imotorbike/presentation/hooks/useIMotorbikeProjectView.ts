@@ -5,7 +5,6 @@ import Papa from "papaparse";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/data/supabase/client";
 import type { Tables, TablesInsert } from "@/data/supabase/types";
-import type { Tables as IntTables, TablesInsert as IntTablesInsert } from "@/integrations/supabase/types";
 import { parseIMotorbikeCSV, type IMotorbikeRow } from "@/lib/imotorbike-csv";
 import {
   parsePurchasedDateTime,
@@ -24,12 +23,12 @@ function toDateKey(value: string | null | undefined): string {
 }
 
 export type TabKind = "issuance" | "insurer_billing" | "ocr" | "errors";
-export type InsurerBillingRow = IntTables<"insurer_billing_data">;
+export type InsurerBillingRow = Tables<"insurer_billing_data">;
 export type OcrRow = Tables<"ocr_data_table">;
-export type IssuanceRow = IntTables<"imotorbike_billing_normalised"> & {
+export type IssuanceRow = Tables<"imotorbike_billing_normalised"> & {
   insurer_billing_data: { insurer: string } | null;
 };
-export type UploadErrorRow = IntTables<"upload_errors">;
+export type UploadErrorRow = Tables<"upload_errors">;
 
 function parseNumeric(s: string | null): number | null {
   if (s == null || String(s).trim() === "") return null;
@@ -42,7 +41,9 @@ const PAGE_SIZE = 50;
 function getCompleteDataCount(rows: IssuanceRow[], verificationStatuses: Record<string, string>): number {
   return rows.filter((r) => {
     const isCompleteAmount = r.total_amount_payable != null && String(r.total_amount_payable).trim() !== "";
-    const isVerifiedStatus = verificationStatuses[r.id] === "cancelled_billed";
+    const isVerifiedStatus =
+      verificationStatuses[r.id] === "cancelled_but_billed" ||
+      verificationStatuses[r.id] === "completed";
     return isCompleteAmount || isVerifiedStatus;
   }).length;
 }
@@ -56,7 +57,7 @@ function getIncompleteDataCount(rows: IssuanceRow[], verificationStatuses: Recor
 }
 
 function getCancelledDataCount(rows: IssuanceRow[], verificationStatuses: Record<string, string>): number {
-  return rows.filter((r) => verificationStatuses[r.id] === "cancelled_not_billed").length;
+  return rows.filter((r) => verificationStatuses[r.id] === "cancelled").length;
 }
 
 const PROJECT_COMPANY_NAMES: Record<string, string> = {
@@ -91,7 +92,7 @@ async function fetchIssuancesForProject(
         ? "project.eq.imotorbike,project.is.null"
         : `project.eq.${projectId}`;
     const { data, error } = await supabase
-      .from("imotorbike_billing_normalised" as any)
+      .from("imotorbike_billing_normalised")
       .select(`
         *,
         insurer_billing_data(insurer)
@@ -100,7 +101,7 @@ async function fetchIssuancesForProject(
       .or(filter)
       .order("issue_date", { ascending: false });
     if (error) return [];
-    return (data ?? []) as any as IssuanceRow[];
+    return (data ?? []) as IssuanceRow[];
   } catch {
     return [];
   }
@@ -116,13 +117,13 @@ async function fetchInsurerBillingForProject(
         ? "project.eq.imotorbike,project.is.null"
         : `project.eq.${projectId}`;
     const { data, error } = await supabase
-      .from("insurer_billing_data" as any)
+      .from("insurer_billing_data")
       .select("*")
       .eq("company_id", companyId)
       .or(filter)
       .order("issue_date", { ascending: true, nullsFirst: false });
     if (error) return [];
-    return (data ?? []) as any as InsurerBillingRow[];
+    return (data ?? []) as InsurerBillingRow[];
   } catch {
     return [];
   }
@@ -156,13 +157,13 @@ async function fetchUploadErrorsForProject(
 ): Promise<UploadErrorRow[]> {
   try {
     const { data, error } = await supabase
-      .from("upload_errors" as any)
+      .from("upload_errors")
       .select("*")
       .eq("company_id", companyId)
       .eq("workflow", projectId)
       .order("created_at", { ascending: false });
     if (error) return [];
-    return data as any as UploadErrorRow[];
+    return data as UploadErrorRow[];
   } catch {
     return [];
   }
@@ -216,7 +217,7 @@ export function useIMotorbikeProjectView() {
   const verificationStatuses = useMemo<Record<string, string>>(() => {
     const base: Record<string, string> = {};
     rows.forEach((r) => {
-      base[r.id] = (r as any).verification_status || "pending";
+      base[r.id] = r.verification_status || "pending";
     });
     return { ...base, ...verificationStatusOverrides };
   }, [rows, verificationStatusOverrides]);
@@ -224,7 +225,7 @@ export function useIMotorbikeProjectView() {
   const handleVerificationStatusChange = (id: string, status: string) => {
     setVerificationStatusOverrides((prev) => ({ ...prev, [id]: status }));
     supabase
-      .from("imotorbike_billing_normalised" as any)
+      .from("imotorbike_billing_normalised")
       .update({ verification_status: status })
       .eq("id", id)
       .then(({ error }) => {
@@ -589,7 +590,7 @@ export function useIMotorbikeProjectView() {
         validRows.push(raw);
       }
 
-      const toInsert: IntTablesInsert<"insurer_billing_data">[] = validRows
+      const toInsert: TablesInsert<"insurer_billing_data">[] = validRows
         .map((raw) => ({
           company_id: companyId,
           project: projectId ?? null,
@@ -639,7 +640,7 @@ export function useIMotorbikeProjectView() {
           .filter((row) => row.insurer != null && String(row.insurer).trim() !== "")
           .map((row) =>
             Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined))
-          ) as IntTablesInsert<"insurer_billing_data">[];
+          ) as TablesInsert<"insurer_billing_data">[];
         if (rows.length > 0) {
           const { error: err } = await supabase.from("insurer_billing_data").insert(rows);
           if (err) throw err;
@@ -660,7 +661,7 @@ export function useIMotorbikeProjectView() {
           company_id: companyId,
           source: "insurer_billing",
           workflow: projectId ?? null,
-          raw_data: raw as IntTables<"upload_errors">["raw_data"],
+          raw_data: raw as Tables<"upload_errors">["raw_data"],
           rejection_reason: reason,
           file_name: file.name,
         }));
@@ -812,7 +813,7 @@ export function useIMotorbikeProjectView() {
           company_id: companyId,
           source: "ocr",
           workflow: projectId,
-          raw_data: raw as IntTables<"upload_errors">["raw_data"],
+          raw_data: raw as Tables<"upload_errors">["raw_data"],
           rejection_reason: reason,
           file_name: file.name,
         }));

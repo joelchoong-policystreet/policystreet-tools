@@ -65,7 +65,7 @@ export function ProjectStatsCards({
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[240px] text-xs">
                 <p className="font-medium mb-1">Incomplete issuances</p>
-                <p>Records where the <strong>Total Amount Payable</strong> is missing <em>and</em> the verification status is still <strong>Pending</strong>. These require action before billing.</p>
+                <p>Records where the <strong>Total Amount Payable</strong> is missing <em>and</em> the verification status is still <strong>Pending</strong> (Verification Required). These require action before billing.</p>
               </TooltipContent>
             </Tooltip>
           </div>
@@ -96,7 +96,7 @@ export function ProjectStatsCards({
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[240px] text-xs">
                 <p className="font-medium mb-1">Cancelled issuances</p>
-                <p>Records manually marked as <strong>"Issuance cancelled and not to be billed"</strong> via the Action column. These are excluded from billing but kept for audit purposes.</p>
+                <p>Records manually marked as <strong>"Issuance cancelled and not to be billed"</strong> (Cancelled) via the Action column. These are excluded from billing but kept for audit purposes.</p>
               </TooltipContent>
             </Tooltip>
           </div>

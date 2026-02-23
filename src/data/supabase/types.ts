@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
@@ -14,28 +16,28 @@ export type Database = {
     Tables: {
       audit_logs: {
         Row: {
+          change: string
+          event_type: string
           id: string
+          item_affected: string
           time: string
           user_name: string
-          event_type: string
-          change: string
-          item_affected: string
         }
         Insert: {
+          change: string
+          event_type: string
           id?: string
+          item_affected: string
           time?: string
           user_name: string
-          event_type: string
-          change: string
-          item_affected: string
         }
         Update: {
+          change?: string
+          event_type?: string
           id?: string
+          item_affected?: string
           time?: string
           user_name?: string
-          event_type?: string
-          change?: string
-          item_affected?: string
         }
         Relationships: []
       }
@@ -85,6 +87,248 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      imotorbike_billing_normalised: {
+        Row: {
+          billing_id: string
+          client_name: string | null
+          company_id: string
+          contact_no: string | null
+          created_at: string
+          email: string | null
+          gross_premium: string | null
+          ic: string | null
+          id: string
+          issue_date: string
+          ncd: string | null
+          premium: string | null
+          project: string | null
+          service_tax: string | null
+          stamp_duty: string | null
+          sum_insured: number | null
+          total_amount_payable: string | null
+          total_base_premium: string | null
+          total_extra_coverage: string | null
+          type_of_cover: string | null
+          updated_at: string
+          vehicle_make_model: string | null
+          vehicle_no: string | null
+          verification_status: string
+        }
+        Insert: {
+          billing_id: string
+          client_name?: string | null
+          company_id: string
+          contact_no?: string | null
+          created_at?: string
+          email?: string | null
+          gross_premium?: string | null
+          ic?: string | null
+          id?: string
+          issue_date: string
+          ncd?: string | null
+          premium?: string | null
+          project?: string | null
+          service_tax?: string | null
+          stamp_duty?: string | null
+          sum_insured?: number | null
+          total_amount_payable?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          type_of_cover?: string | null
+          updated_at?: string
+          vehicle_make_model?: string | null
+          vehicle_no?: string | null
+          verification_status?: string
+        }
+        Update: {
+          billing_id?: string
+          client_name?: string | null
+          company_id?: string
+          contact_no?: string | null
+          created_at?: string
+          email?: string | null
+          gross_premium?: string | null
+          ic?: string | null
+          id?: string
+          issue_date?: string
+          ncd?: string | null
+          premium?: string | null
+          project?: string | null
+          service_tax?: string | null
+          stamp_duty?: string | null
+          sum_insured?: number | null
+          total_amount_payable?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          type_of_cover?: string | null
+          updated_at?: string
+          vehicle_make_model?: string | null
+          vehicle_no?: string | null
+          verification_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imotorbike_billing_normalised_billing_id_fkey"
+            columns: ["billing_id"]
+            isOneToOne: false
+            referencedRelation: "insurer_billing_data"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imotorbike_billing_normalised_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      insurer_billing_data: {
+        Row: {
+          account_no: string | null
+          agent_code: string | null
+          amount_payable: number | null
+          chassis: string | null
+          class_product: string | null
+          client_name: string | null
+          cn_no: string | null
+          commission: number | null
+          company_id: string
+          coverage_type: string | null
+          created_at: string
+          effective_date: string | null
+          expiry_date: string | null
+          gross_premium: number | null
+          gst: number | null
+          gst_commission: number | null
+          id: string
+          insurer: string
+          issue_date: string | null
+          issued_by: string | null
+          jpj_status: string | null
+          nett_premium: number | null
+          policy_no: string | null
+          premium_due: number | null
+          premium_due_after_ptv: number | null
+          project: string | null
+          ptv_amount: number | null
+          quotation: string | null
+          rebate: number | null
+          repl_prev_no: string | null
+          row_number: string | null
+          service_tax: number | null
+          stamp: number | null
+          status: string | null
+          sum_insured: number | null
+          total_amount: number | null
+          transaction_date: string | null
+          transaction_time: string | null
+          trx_status: string | null
+          type: string | null
+          user_id: string | null
+          vehicle_no: string | null
+          vehicle_type: string | null
+        }
+        Insert: {
+          account_no?: string | null
+          agent_code?: string | null
+          amount_payable?: number | null
+          chassis?: string | null
+          class_product?: string | null
+          client_name?: string | null
+          cn_no?: string | null
+          commission?: number | null
+          company_id: string
+          coverage_type?: string | null
+          created_at?: string
+          effective_date?: string | null
+          expiry_date?: string | null
+          gross_premium?: number | null
+          gst?: number | null
+          gst_commission?: number | null
+          id?: string
+          insurer: string
+          issue_date?: string | null
+          issued_by?: string | null
+          jpj_status?: string | null
+          nett_premium?: number | null
+          policy_no?: string | null
+          premium_due?: number | null
+          premium_due_after_ptv?: number | null
+          project?: string | null
+          ptv_amount?: number | null
+          quotation?: string | null
+          rebate?: number | null
+          repl_prev_no?: string | null
+          row_number?: string | null
+          service_tax?: number | null
+          stamp?: number | null
+          status?: string | null
+          sum_insured?: number | null
+          total_amount?: number | null
+          transaction_date?: string | null
+          transaction_time?: string | null
+          trx_status?: string | null
+          type?: string | null
+          user_id?: string | null
+          vehicle_no?: string | null
+          vehicle_type?: string | null
+        }
+        Update: {
+          account_no?: string | null
+          agent_code?: string | null
+          amount_payable?: number | null
+          chassis?: string | null
+          class_product?: string | null
+          client_name?: string | null
+          cn_no?: string | null
+          commission?: number | null
+          company_id?: string
+          coverage_type?: string | null
+          created_at?: string
+          effective_date?: string | null
+          expiry_date?: string | null
+          gross_premium?: number | null
+          gst?: number | null
+          gst_commission?: number | null
+          id?: string
+          insurer?: string
+          issue_date?: string | null
+          issued_by?: string | null
+          jpj_status?: string | null
+          nett_premium?: number | null
+          policy_no?: string | null
+          premium_due?: number | null
+          premium_due_after_ptv?: number | null
+          project?: string | null
+          ptv_amount?: number | null
+          quotation?: string | null
+          rebate?: number | null
+          repl_prev_no?: string | null
+          row_number?: string | null
+          service_tax?: number | null
+          stamp?: number | null
+          status?: string | null
+          sum_insured?: number | null
+          total_amount?: number | null
+          transaction_date?: string | null
+          transaction_time?: string | null
+          trx_status?: string | null
+          type?: string | null
+          user_id?: string | null
+          vehicle_no?: string | null
+          vehicle_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurer_billing_data_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       issuances: {
         Row: {
@@ -136,130 +380,90 @@ export type Database = {
           },
         ]
       }
-      insurer_billing_data: {
-        Row: {
-          id: string
-          company_id: string
-          billing_date: string | null
-          reference_number: string | null
-          insurer: string | null
-          amount: string | null
-          policy_number: string | null
-          description: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          company_id: string
-          billing_date?: string | null
-          reference_number?: string | null
-          insurer?: string | null
-          amount?: string | null
-          policy_number?: string | null
-          description?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          company_id?: string
-          billing_date?: string | null
-          reference_number?: string | null
-          insurer?: string | null
-          amount?: string | null
-          policy_number?: string | null
-          description?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "insurer_billing_data_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ocr_data_table: {
         Row: {
-          id: string
           company_id: string
-          project: string | null
           created_at: string
+          created_timestamp: string | null
           date_issue: string | null
-          vehicle_no: string | null
-          insured_name: string | null
-          insured_ic_no: string | null
-          insurer_contact_no: string | null
-          insured_email: string | null
-          vehicle_make_model: string | null
-          type_of_cover: string | null
-          sum_insured: string | null
-          premium: string | null
-          ncd: string | null
-          total_base_premium: string | null
-          total_extra_coverage: string | null
+          file_name: string | null
+          formatted_timestamp: string | null
           gross_premium: string | null
+          id: string
+          insured_email: string | null
+          insured_ic_no: string | null
+          insured_name: string | null
+          insurer: string
+          insurer_contact_no: string | null
+          ncd: string | null
+          premium: string | null
+          process_duration: string | null
+          project: string | null
           service_tax: string | null
           stamp_duty: string | null
+          sum_insured: string | null
           total_amount_payable_rounded: string | null
-          insurer: string | null
-          file_name: string | null
-          created_timestamp: string | null
-          formatted_timestamp: string | null
-          process_duration: string | null
+          total_base_premium: string | null
+          total_extra_coverage: string | null
+          type_of_cover: string | null
+          vehicle_make_model: string | null
+          vehicle_no: string | null
         }
         Insert: {
           company_id: string
-          project?: string | null
+          created_at?: string
+          created_timestamp?: string | null
           date_issue?: string | null
-          vehicle_no?: string | null
-          insured_name?: string | null
-          insured_ic_no?: string | null
-          insurer_contact_no?: string | null
-          insured_email?: string | null
-          vehicle_make_model?: string | null
-          type_of_cover?: string | null
-          sum_insured?: string | null
-          premium?: string | null
-          ncd?: string | null
-          total_base_premium?: string | null
-          total_extra_coverage?: string | null
+          file_name?: string | null
+          formatted_timestamp?: string | null
           gross_premium?: string | null
+          id?: string
+          insured_email?: string | null
+          insured_ic_no?: string | null
+          insured_name?: string | null
+          insurer: string
+          insurer_contact_no?: string | null
+          ncd?: string | null
+          premium?: string | null
+          process_duration?: string | null
+          project?: string | null
           service_tax?: string | null
           stamp_duty?: string | null
+          sum_insured?: string | null
           total_amount_payable_rounded?: string | null
-          insurer?: string | null
-          file_name?: string | null
-          created_timestamp?: string | null
-          formatted_timestamp?: string | null
-          process_duration?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          type_of_cover?: string | null
+          vehicle_make_model?: string | null
+          vehicle_no?: string | null
         }
         Update: {
           company_id?: string
-          project?: string | null
+          created_at?: string
+          created_timestamp?: string | null
           date_issue?: string | null
-          vehicle_no?: string | null
-          insured_name?: string | null
-          insured_ic_no?: string | null
-          insurer_contact_no?: string | null
-          insured_email?: string | null
-          vehicle_make_model?: string | null
-          type_of_cover?: string | null
-          sum_insured?: string | null
-          premium?: string | null
-          ncd?: string | null
-          total_base_premium?: string | null
-          total_extra_coverage?: string | null
+          file_name?: string | null
+          formatted_timestamp?: string | null
           gross_premium?: string | null
+          id?: string
+          insured_email?: string | null
+          insured_ic_no?: string | null
+          insured_name?: string | null
+          insurer?: string
+          insurer_contact_no?: string | null
+          ncd?: string | null
+          premium?: string | null
+          process_duration?: string | null
+          project?: string | null
           service_tax?: string | null
           stamp_duty?: string | null
+          sum_insured?: string | null
           total_amount_payable_rounded?: string | null
-          insurer?: string | null
-          file_name?: string | null
-          created_timestamp?: string | null
-          formatted_timestamp?: string | null
-          process_duration?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          type_of_cover?: string | null
+          vehicle_make_model?: string | null
+          vehicle_no?: string | null
         }
         Relationships: [
           {
@@ -273,30 +477,71 @@ export type Database = {
       }
       profiles: {
         Row: {
-          id: string
-          name: string
-          email: string
-          status: string
-          must_change_password: boolean
           created_at: string
+          email: string
+          id: string
+          must_change_password: boolean
+          name: string
+          status: string
         }
         Insert: {
-          id: string
-          name?: string
-          email: string
-          status?: string
-          must_change_password?: boolean
           created_at?: string
+          email: string
+          id: string
+          must_change_password?: boolean
+          name?: string
+          status?: string
         }
         Update: {
-          id?: string
-          name?: string
-          email?: string
-          status?: string
-          must_change_password?: boolean
           created_at?: string
+          email?: string
+          id?: string
+          must_change_password?: boolean
+          name?: string
+          status?: string
         }
         Relationships: []
+      }
+      upload_errors: {
+        Row: {
+          company_id: string
+          created_at: string
+          file_name: string | null
+          id: string
+          raw_data: Json
+          rejection_reason: string
+          source: string
+          workflow: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          raw_data: Json
+          rejection_reason: string
+          source: string
+          workflow?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          raw_data?: Json
+          rejection_reason?: string
+          source?: string
+          workflow?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upload_errors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -329,6 +574,13 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      norm_text: { Args: { v: string }; Returns: string }
+      norm_vehicle: { Args: { v: string }; Returns: string }
+      parse_ocr_date_to_iso: { Args: { d: string }; Returns: string }
+      projects_match_imotorbike: {
+        Args: { a: string; b: string }
         Returns: boolean
       }
     }
