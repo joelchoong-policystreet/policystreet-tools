@@ -40,10 +40,12 @@ const PAGE_SIZE = 50;
 
 function getCompleteDataCount(rows: IssuanceRow[], verificationStatuses: Record<string, string>): number {
   return rows.filter((r) => {
+    const status = verificationStatuses[r.id];
+    // Explicitly exclude all cancelled variants from Complete count
+    if (status === "cancelled" || status === "cancelled_but_billed") return false;
+
     const isCompleteAmount = r.total_amount_payable != null && String(r.total_amount_payable).trim() !== "";
-    const isVerifiedStatus =
-      verificationStatuses[r.id] === "cancelled_but_billed" ||
-      verificationStatuses[r.id] === "completed";
+    const isVerifiedStatus = status === "completed";
     return isCompleteAmount || isVerifiedStatus;
   }).length;
 }
@@ -57,7 +59,10 @@ function getIncompleteDataCount(rows: IssuanceRow[], verificationStatuses: Recor
 }
 
 function getCancelledDataCount(rows: IssuanceRow[], verificationStatuses: Record<string, string>): number {
-  return rows.filter((r) => verificationStatuses[r.id] === "cancelled").length;
+  return rows.filter((r) => {
+    const status = verificationStatuses[r.id];
+    return status === "cancelled" || status === "cancelled_but_billed";
+  }).length;
 }
 
 const PROJECT_COMPANY_NAMES: Record<string, string> = {
@@ -305,11 +310,16 @@ export function useIMotorbikeProjectView() {
         return isEmptyAmount && isPendingStatus;
       });
     } else if (issuanceFilter === "cancelled") {
-      base = base.filter((r) => verificationStatuses[r.id] === "cancelled_not_billed");
+      base = base.filter((r) => {
+        const status = verificationStatuses[r.id];
+        return status === "cancelled" || status === "cancelled_but_billed";
+      });
     } else if (issuanceFilter === "complete") {
       base = base.filter((r) => {
+        const status = verificationStatuses[r.id];
+        if (status === "cancelled" || status === "cancelled_but_billed") return false;
         const isCompleteAmount = r.total_amount_payable != null && String(r.total_amount_payable).trim() !== "";
-        const isVerifiedStatus = verificationStatuses[r.id] === "cancelled_billed";
+        const isVerifiedStatus = status === "completed";
         return isCompleteAmount || isVerifiedStatus;
       });
     }
