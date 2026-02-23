@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          change: string
+          event_type: string
+          id: string
+          item_affected: string
+          time: string
+          user_name: string
+        }
+        Insert: {
+          change: string
+          event_type: string
+          id?: string
+          item_affected: string
+          time?: string
+          user_name: string
+        }
+        Update: {
+          change?: string
+          event_type?: string
+          id?: string
+          item_affected?: string
+          time?: string
+          user_name?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           created_at: string
@@ -61,11 +88,106 @@ export type Database = {
         }
         Relationships: []
       }
+      imotorbike_billing_normalised: {
+        Row: {
+          billing_id: string
+          client_name: string | null
+          company_id: string
+          contact_no: string | null
+          created_at: string
+          email: string | null
+          gross_premium: string | null
+          ic: string | null
+          id: string
+          issue_date: string
+          ncd: string | null
+          premium: string | null
+          project: string | null
+          service_tax: string | null
+          stamp_duty: string | null
+          sum_insured: number | null
+          total_amount_payable: string | null
+          total_base_premium: string | null
+          total_extra_coverage: string | null
+          type_of_cover: string | null
+          updated_at: string
+          vehicle_make_model: string | null
+          vehicle_no: string | null
+          verification_status: string
+        }
+        Insert: {
+          billing_id: string
+          client_name?: string | null
+          company_id: string
+          contact_no?: string | null
+          created_at?: string
+          email?: string | null
+          gross_premium?: string | null
+          ic?: string | null
+          id?: string
+          issue_date: string
+          ncd?: string | null
+          premium?: string | null
+          project?: string | null
+          service_tax?: string | null
+          stamp_duty?: string | null
+          sum_insured?: number | null
+          total_amount_payable?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          type_of_cover?: string | null
+          updated_at?: string
+          vehicle_make_model?: string | null
+          vehicle_no?: string | null
+          verification_status?: string
+        }
+        Update: {
+          billing_id?: string
+          client_name?: string | null
+          company_id?: string
+          contact_no?: string | null
+          created_at?: string
+          email?: string | null
+          gross_premium?: string | null
+          ic?: string | null
+          id?: string
+          issue_date?: string
+          ncd?: string | null
+          premium?: string | null
+          project?: string | null
+          service_tax?: string | null
+          stamp_duty?: string | null
+          sum_insured?: number | null
+          total_amount_payable?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          type_of_cover?: string | null
+          updated_at?: string
+          vehicle_make_model?: string | null
+          vehicle_no?: string | null
+          verification_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imotorbike_billing_normalised_billing_id_fkey"
+            columns: ["billing_id"]
+            isOneToOne: false
+            referencedRelation: "insurer_billing_data"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imotorbike_billing_normalised_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       insurer_billing_data: {
         Row: {
           account_no: string | null
           agent_code: string | null
-          project: string | null
           amount_payable: number | null
           chassis: string | null
           class_product: string | null
@@ -89,6 +211,7 @@ export type Database = {
           policy_no: string | null
           premium_due: number | null
           premium_due_after_ptv: number | null
+          project: string | null
           ptv_amount: number | null
           quotation: string | null
           rebate: number | null
@@ -117,7 +240,6 @@ export type Database = {
           cn_no?: string | null
           commission?: number | null
           company_id: string
-          project?: string | null
           coverage_type?: string | null
           created_at?: string
           effective_date?: string | null
@@ -134,6 +256,7 @@ export type Database = {
           policy_no?: string | null
           premium_due?: number | null
           premium_due_after_ptv?: number | null
+          project?: string | null
           ptv_amount?: number | null
           quotation?: string | null
           rebate?: number | null
@@ -162,7 +285,6 @@ export type Database = {
           cn_no?: string | null
           commission?: number | null
           company_id?: string
-          project?: string | null
           coverage_type?: string | null
           created_at?: string
           effective_date?: string | null
@@ -179,6 +301,7 @@ export type Database = {
           policy_no?: string | null
           premium_due?: number | null
           premium_due_after_ptv?: number | null
+          project?: string | null
           ptv_amount?: number | null
           quotation?: string | null
           rebate?: number | null
@@ -200,96 +323,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "insurer_billing_data_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      imotorbike_billing_normalised: {
-        Row: {
-          id: string
-          billing_id: string
-          company_id: string
-          project: string | null
-          created_at: string
-          updated_at: string
-          issue_date: string
-          client_name: string | null
-          vehicle_no: string | null
-          sum_insured: number | null
-          total_amount_payable: string | null
-          ic: string | null
-          contact_no: string | null
-          email: string | null
-          vehicle_make_model: string | null
-          type_of_cover: string | null
-          premium: string | null
-          ncd: string | null
-          total_base_premium: string | null
-          total_extra_coverage: string | null
-          gross_premium: string | null
-          service_tax: string | null
-          stamp_duty: string | null
-          verification_status: string
-        }
-        Insert: {
-          billing_id: string
-          company_id: string
-          project?: string | null
-          issue_date: string
-          client_name?: string | null
-          vehicle_no?: string | null
-          sum_insured?: number | null
-          total_amount_payable?: string | null
-          ic?: string | null
-          contact_no?: string | null
-          email?: string | null
-          vehicle_make_model?: string | null
-          type_of_cover?: string | null
-          premium?: string | null
-          ncd?: string | null
-          total_base_premium?: string | null
-          total_extra_coverage?: string | null
-          gross_premium?: string | null
-          service_tax?: string | null
-          stamp_duty?: string | null
-          verification_status?: string
-        }
-        Update: {
-          billing_id?: string
-          company_id?: string
-          project?: string | null
-          issue_date?: string
-          client_name?: string | null
-          vehicle_no?: string | null
-          sum_insured?: number | null
-          total_amount_payable?: string | null
-          ic?: string | null
-          contact_no?: string | null
-          email?: string | null
-          vehicle_make_model?: string | null
-          type_of_cover?: string | null
-          premium?: string | null
-          ncd?: string | null
-          total_base_premium?: string | null
-          total_extra_coverage?: string | null
-          gross_premium?: string | null
-          service_tax?: string | null
-          stamp_duty?: string | null
-          verification_status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "imotorbike_billing_normalised_billing_id_fkey"
-            columns: ["billing_id"]
-            isOneToOne: true
-            referencedRelation: "insurer_billing_data"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "imotorbike_billing_normalised_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -347,6 +380,101 @@ export type Database = {
           },
         ]
       }
+      ocr_data_table: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_timestamp: string | null
+          date_issue: string | null
+          file_name: string | null
+          formatted_timestamp: string | null
+          gross_premium: string | null
+          id: string
+          insured_email: string | null
+          insured_ic_no: string | null
+          insured_name: string | null
+          insurer: string
+          insurer_contact_no: string | null
+          ncd: string | null
+          premium: string | null
+          process_duration: string | null
+          project: string | null
+          service_tax: string | null
+          stamp_duty: string | null
+          sum_insured: string | null
+          total_amount_payable_rounded: string | null
+          total_base_premium: string | null
+          total_extra_coverage: string | null
+          type_of_cover: string | null
+          vehicle_make_model: string | null
+          vehicle_no: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_timestamp?: string | null
+          date_issue?: string | null
+          file_name?: string | null
+          formatted_timestamp?: string | null
+          gross_premium?: string | null
+          id?: string
+          insured_email?: string | null
+          insured_ic_no?: string | null
+          insured_name?: string | null
+          insurer: string
+          insurer_contact_no?: string | null
+          ncd?: string | null
+          premium?: string | null
+          process_duration?: string | null
+          project?: string | null
+          service_tax?: string | null
+          stamp_duty?: string | null
+          sum_insured?: string | null
+          total_amount_payable_rounded?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          type_of_cover?: string | null
+          vehicle_make_model?: string | null
+          vehicle_no?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_timestamp?: string | null
+          date_issue?: string | null
+          file_name?: string | null
+          formatted_timestamp?: string | null
+          gross_premium?: string | null
+          id?: string
+          insured_email?: string | null
+          insured_ic_no?: string | null
+          insured_name?: string | null
+          insurer?: string
+          insurer_contact_no?: string | null
+          ncd?: string | null
+          premium?: string | null
+          process_duration?: string | null
+          project?: string | null
+          service_tax?: string | null
+          stamp_duty?: string | null
+          sum_insured?: string | null
+          total_amount_payable_rounded?: string | null
+          total_base_premium?: string | null
+          total_extra_coverage?: string | null
+          type_of_cover?: string | null
+          vehicle_make_model?: string | null
+          vehicle_no?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ocr_data_table_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -387,7 +515,9 @@ export type Database = {
         }
         Insert: {
           company_id: string
+          created_at?: string
           file_name?: string | null
+          id?: string
           raw_data: Json
           rejection_reason: string
           source: string
@@ -395,7 +525,9 @@ export type Database = {
         }
         Update: {
           company_id?: string
+          created_at?: string
           file_name?: string | null
+          id?: string
           raw_data?: Json
           rejection_reason?: string
           source?: string
@@ -444,6 +576,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      norm_text: { Args: { v: string }; Returns: string }
+      norm_vehicle: { Args: { v: string }; Returns: string }
+      parse_ocr_date_to_iso: { Args: { d: string }; Returns: string }
+      projects_match_imotorbike: {
+        Args: { a: string; b: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
@@ -460,116 +599,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-  : never = never,
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-  ? R
-  : never
+    ? R
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : never
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
+      Insert: infer I
+    }
+    ? I
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Update: infer U
-  }
-  ? U
-  : never
+      Update: infer U
+    }
+    ? U
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-  | keyof DefaultSchema["Enums"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-  | keyof DefaultSchema["CompositeTypes"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {
