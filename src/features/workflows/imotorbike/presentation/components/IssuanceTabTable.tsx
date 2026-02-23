@@ -96,10 +96,51 @@ export function IssuanceTabTable({
                 return (
                   <TableRow key={row.id}>
                     <TableCell className="sticky left-0 bg-background z-10 shadow-[1px_0_0_hsl(var(--border))]">
-                      {isComplete ? (
-                        <div className="inline-flex h-8 items-center justify-center rounded-md bg-blue-100 px-3 text-xs font-medium text-blue-700 w-full cursor-default">
-                          Completed
-                        </div>
+                    {isComplete ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            {currentStatus === "cancelled_billed" ? (
+                              <Button variant="outline" size="sm" className="h-8 w-full justify-between px-2 text-[11px] bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:text-blue-800">
+                                Verified
+                                <ChevronDown className="h-3.5 w-3.5 opacity-50 ml-1 shrink-0" />
+                              </Button>
+                            ) : currentStatus === "cancelled_not_billed" ? (
+                              <Button variant="outline" size="sm" className="h-8 w-full justify-between px-2 text-[11px] bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:text-amber-800">
+                                Issuance Cancelled
+                                <ChevronDown className="h-3.5 w-3.5 opacity-50 ml-1 shrink-0" />
+                              </Button>
+                            ) : (
+                              <Button variant="outline" size="sm" className="h-8 w-full justify-between px-2 text-[11px] bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800">
+                                Completed
+                                <ChevronDown className="h-3.5 w-3.5 opacity-50 ml-1 shrink-0" />
+                              </Button>
+                            )}
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-[300px]">
+                            <DropdownMenuLabel className="font-normal text-xs text-muted-foreground leading-snug">
+                              Change status for this completed issuance.
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-xs cursor-pointer"
+                              onClick={() => onVerificationStatusChange(row.id, "pending")}
+                            >
+                              Completed (default)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-xs text-amber-600 focus:text-amber-700 cursor-pointer"
+                              onClick={() => onVerificationStatusChange(row.id, "cancelled_not_billed")}
+                            >
+                              Issuance cancelled and not to be billed
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-xs text-blue-600 focus:text-blue-700 cursor-pointer"
+                              onClick={() => onVerificationStatusChange(row.id, "cancelled_billed")}
+                            >
+                              Issuance cancelled but still billed
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       ) : (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
