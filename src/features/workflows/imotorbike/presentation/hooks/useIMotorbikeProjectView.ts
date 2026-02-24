@@ -609,15 +609,16 @@ export function useIMotorbikeProjectView() {
         return null;
       };
       const dataRows = parsedRows;
-      const getInsurer = (raw: Record<string, string>) => get(raw, "insurer");
+      const getInsurerFromFile = (raw: Record<string, string>) => get(raw, "insurer");
       const isValidDate = (raw: Record<string, string>) => {
         const dateVal = getDateForIssue(raw);
         return dateVal !== null && toISODateOnly(dateVal) !== null;
       };
-      const hasInsurer = (raw: Record<string, string>) => {
-        const v = getInsurer(raw);
-        return v != null && String(v).trim() !== "";
-      };
+      // When user selected an insurer in the dialog, use it for all rows. Otherwise require file to have insurer column.
+      const hasInsurer = (raw: Record<string, string>) =>
+        insurerForUpload != null
+          ? true
+          : (getInsurerFromFile(raw) != null && String(getInsurerFromFile(raw)).trim() !== "");
       // Gather plate+date keys already in the DB for this company+project
       const normPlate = (s: string | null | undefined) =>
         String(s ?? "").toLowerCase().trim().replace(/\s+/g, "");
@@ -661,7 +662,7 @@ export function useIMotorbikeProjectView() {
         .map((raw) => ({
           company_id: companyId,
           project: projectId ?? null,
-          insurer: getInsurer(raw)!,
+          insurer: insurerForUpload ?? getInsurerFromFile(raw)!,
           row_number: get(raw, "no.", "no") ?? null,
           policy_no: get(raw, "policy no.", "policy no", "policy_no") ?? null,
           client_name: get(raw, "name of insured", "client", "client_name") ?? null,
