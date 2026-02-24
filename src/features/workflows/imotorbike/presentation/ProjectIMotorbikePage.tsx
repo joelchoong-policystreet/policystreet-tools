@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import Papa from "papaparse";
 import { supabase } from "@/data/supabase/client";
@@ -8,6 +9,7 @@ import { ProjectTabs } from "./components/ProjectTabs";
 import { IssuanceTabFilters } from "./components/IssuanceTabFilters";
 import { ProjectStatsCards } from "./components/ProjectStatsCards";
 import { IssuanceTabTable } from "./components/IssuanceTabTable";
+import { IssuanceRowEditPanel } from "./components/IssuanceRowEditPanel";
 import { InsurerBillingTabContent } from "./components/InsurerBillingTabContent";
 import { OcrTabContent } from "./components/OcrTabContent";
 import { ErrorsTabContent } from "./components/ErrorsTabContent";
@@ -28,6 +30,15 @@ export default function ProjectIMotorbikePage() {
   }
 
   const view = useIMotorbikeProjectView();
+  const [selectedRow, setSelectedRow] = useState<typeof view.rows[0] | null>(null);
+
+  // Keep selectedRow in sync with refetched data after updates
+  useEffect(() => {
+    if (selectedRow?.id && view.rows.length > 0) {
+      const updated = view.rows.find((r) => r.id === selectedRow.id);
+      if (updated) setSelectedRow(updated);
+    }
+  }, [view.rows, selectedRow?.id]);
 
   const issuanceEmptyMessage =
     view.rows.length === 0
@@ -109,6 +120,7 @@ export default function ProjectIMotorbikePage() {
 
         {view.activeTab === "issuance" && (
           <>
+            <div>
             <IssuanceTabFilters
               lastUpdated={view.lastUpdated}
               fileInputRef={view.fileInputRef}
@@ -146,7 +158,17 @@ export default function ProjectIMotorbikePage() {
               onPageChange={view.setCurrentPage}
               verificationStatuses={view.verificationStatuses}
               onVerificationStatusChange={view.handleVerificationStatusChange}
+              selectedRowId={selectedRow?.id}
+              onRowSelect={setSelectedRow}
             />
+            </div>
+            {selectedRow && (
+              <IssuanceRowEditPanel
+                row={selectedRow}
+                onClose={() => setSelectedRow(null)}
+                onUpdate={view.handleRowFieldUpdate}
+              />
+            )}
           </>
         )}
 

@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { ArrowUp, ArrowDown, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -33,6 +33,8 @@ type IssuanceTabTableProps = {
   onPageChange: (page: number) => void;
   verificationStatuses: Record<string, string>;
   onVerificationStatusChange: (id: string, status: string) => void;
+  selectedRowId?: string | null;
+  onRowSelect?: (row: IssuanceRow | null) => void;
 };
 
 export function IssuanceTabTable({
@@ -47,6 +49,8 @@ export function IssuanceTabTable({
   onPageChange,
   verificationStatuses,
   onVerificationStatusChange,
+  selectedRowId,
+  onRowSelect,
 }: IssuanceTabTableProps) {
   return (
     <Card>
@@ -94,8 +98,18 @@ export function IssuanceTabTable({
                 const currentStatus = verificationStatuses[row.id] || "pending";
 
                 return (
-                  <TableRow key={row.id}>
-                    <TableCell className="sticky left-0 bg-background z-10 shadow-[1px_0_0_hsl(var(--border))]">
+                  <TableRow
+                    key={row.id}
+                    className={cn(
+                      onRowSelect && "cursor-pointer hover:bg-muted/50",
+                      selectedRowId === row.id && "bg-muted"
+                    )}
+                    onClick={onRowSelect ? () => onRowSelect(row) : undefined}
+                  >
+                    <TableCell
+                      className="sticky left-0 bg-background z-10 shadow-[1px_0_0_hsl(var(--border))]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {isComplete ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

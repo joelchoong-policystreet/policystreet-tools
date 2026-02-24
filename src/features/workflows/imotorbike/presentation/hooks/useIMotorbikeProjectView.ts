@@ -253,6 +253,68 @@ export function useIMotorbikeProjectView() {
       });
   };
 
+  const handleRowFieldUpdate = async (
+    id: string,
+    updates: Partial<Record<string, string | number | null>>
+  ) => {
+    const updatePayload: Record<string, string | number | null> = {};
+    for (const [k, v] of Object.entries(updates)) {
+      if (v !== undefined) updatePayload[k] = v;
+    }
+    if (Object.keys(updatePayload).length === 0) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const userEmail = user?.email ?? "Unknown User";
+
+    const { error: updateError } = await supabase
+      .from("imotorbike_billing_normalised")
+      .update(updatePayload)
+      .eq("id", id);
+
+    if (updateError) {
+      toast({
+        title: "Failed to update",
+        description: updateError.message,
+        variant: "destructive",
+      });
+      throw updateError;
+    }
+
+    // Insert field history for each changed field
+    const historyInserts = Object.entries(updatePayload).map(([fieldName, newValue]) => ({
+      normalised_id: id,
+      field_name: fieldName,
+      old_value: null,
+      new_value: newValue == null ? null : String(newValue),
+      changed_by: userEmail,
+    }));
+
+    const row = rows.find((r) => r.id === id);
+    if (row) {
+      for (let i = 0; i < historyInserts.length; i++) {
+        const entry = historyInserts[i];
+        const oldVal = row[entry.field_name as keyof IssuanceRow];
+        entry.old_value = oldVal == null ? null : String(oldVal);
+      }
+    }
+
+    if (historyInserts.length > 0) {
+      await supabase.from("imotorbike_billing_field_history").insert(historyInserts);
+    }
+
+    const changeSummary = Object.keys(updatePayload).join(", ");
+    await supabase.from("audit_logs").insert({
+      user_name: userEmail,
+      event_type: "Workflow",
+      change: `iMotorbike issuance fields updated: ${changeSummary}`,
+      item_affected: `imotorbike_billing_normalised/${id}`,
+    });
+
+    queryClient.invalidateQueries({ queryKey: ["issuances", companyId, projectId] });
+    queryClient.invalidateQueries({ queryKey: ["imotorbike-field-history", id] });
+    toast({ title: "Changes saved", description: `${Object.keys(updatePayload).length} field(s) updated.` });
+  };
+
 
   const { data: insurerBillingRows = [], isLoading: isLoadingBilling, error: errorBilling } = useQuery({
     queryKey: ["insurer-billing", companyId, projectId],
@@ -878,6 +940,7 @@ export function useIMotorbikeProjectView() {
     setIssuanceFilter,
     verificationStatuses,
     handleVerificationStatusChange,
+    handleRowFieldUpdate,
     // Issuance tab
     rows,
     isLoadingIssuance,

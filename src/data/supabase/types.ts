@@ -184,6 +184,44 @@ export type Database = {
           },
         ]
       }
+      imotorbike_billing_field_history: {
+        Row: {
+          id: string
+          normalised_id: string
+          field_name: string
+          old_value: string | null
+          new_value: string | null
+          changed_by: string
+          changed_at: string
+        }
+        Insert: {
+          id?: string
+          normalised_id: string
+          field_name: string
+          old_value?: string | null
+          new_value?: string | null
+          changed_by: string
+          changed_at?: string
+        }
+        Update: {
+          id?: string
+          normalised_id?: string
+          field_name?: string
+          old_value?: string | null
+          new_value?: string | null
+          changed_by?: string
+          changed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imotorbike_billing_field_history_normalised_id_fkey"
+            columns: ["normalised_id"]
+            isOneToOne: false
+            referencedRelation: "imotorbike_billing_normalised"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       insurer_billing_data: {
         Row: {
           account_no: string | null
