@@ -9,6 +9,7 @@ import {
   parsePurchasedDateTime,
   parseBillingDate,
   toISODateOnly,
+  parseOcrDateToISO,
   filterByDateRange,
   getFilterLabel,
   type FilterPreset,
@@ -853,6 +854,15 @@ export function useIMotorbikeProjectView() {
       for (const item of built) {
         if (!hasInsurer(item)) {
           rejectedRows.push({ raw: item.raw, reason: "Missing insurer" });
+          continue;
+        }
+        const r = item.row as Record<string, unknown>;
+        const rawNorm = Object.fromEntries(
+          Object.entries(item.raw).map(([k, v]) => [norm(k), v])
+        ) as Record<string, string>;
+        const dateVal = getVal(r, "date_issue") || getVal(rawNorm as Record<string, unknown>, "date issue", "date_issue", "dateissue");
+        if (dateVal && parseOcrDateToISO(dateVal) === null) {
+          rejectedRows.push({ raw: item.raw, reason: "Date out of range" });
           continue;
         }
         const key = getDedupKey(item);

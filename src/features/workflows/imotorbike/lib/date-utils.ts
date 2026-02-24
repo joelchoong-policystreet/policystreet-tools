@@ -68,6 +68,31 @@ export function toISODateOnly(value: string | null): string | null {
   return d ? format(d, "yyyy-MM-dd") : null;
 }
 
+/**
+ * Parse OCR date_issue using US formats only (matches DB parse_ocr_date_to_iso).
+ * Returns YYYY-MM-DD or null if unparseable.
+ */
+export function parseOcrDateToISO(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  const s = value.trim();
+  const formats: [string, string][] = [
+    ["yyyy-MM-dd", "yyyy-MM-dd"],
+    ["yyyy/MM/dd", "yyyy-MM-dd"],
+    ["MM/dd/yyyy", "yyyy-MM-dd"],
+    ["M/dd/yyyy", "yyyy-MM-dd"],
+    ["M/d/yyyy", "yyyy-MM-dd"],
+    ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd"],
+    ["yyyy-MM-dd HH:mm", "yyyy-MM-dd"],
+    ["MM/dd/yyyy HH:mm", "yyyy-MM-dd"],
+    ["M/dd/yyyy HH:mm", "yyyy-MM-dd"],
+  ];
+  for (const [fmt] of formats) {
+    const d = parse(s, fmt, new Date());
+    if (isValid(d)) return format(d, "yyyy-MM-dd");
+  }
+  return null;
+}
+
 export function filterByDateRange<T>(
   rows: T[],
   preset: FilterPreset,
