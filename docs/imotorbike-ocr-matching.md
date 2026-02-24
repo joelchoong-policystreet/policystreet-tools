@@ -22,7 +22,7 @@ Matching is done on **vehicle_no + date** only. The client name (insured_name / 
 | Cause | Explanation |
 |-------|-------------|
 | **No billing data** | The vehicle has OCR data but no row in `insurer_billing_data`. Upload the insurer billing CSV/XLS first. |
-| **Date mismatch** | OCR `date_issue` could not be parsed to YYYY-MM-DD (invalid format or null). Check `parse_ocr_date_to_iso(date_issue)`. |
+| **Date mismatch** | OCR `date_issue` could not be parsed. Supported formats: `M/DD/YYYY`, `MM/DD/YYYY`, `M/D/YYYY`, `YYYY-MM-DD`, `YYYY/MM/DD`. Check `parse_ocr_date_to_iso(date_issue)`. |
 | **Vehicle format mismatch** | Plate numbers differ after normalisation (e.g. spaces, special chars). `norm_vehicle()` lowercases and strips spaces. |
 | **Company/project mismatch** | OCR and billing use different `company_id` or `project`. Both must match (or both imotorbike/null). |
 
