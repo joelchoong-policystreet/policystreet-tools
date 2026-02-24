@@ -71,9 +71,16 @@ export function ErrorsTabContent({
               What are errors?
             </button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[280px] text-xs">
-            <p className="font-medium mb-1">Rejected rows from CSV uploads</p>
-            <p>Rows are skipped during import and appear here when they have a <strong>missing or invalid issue date</strong>, a <strong>missing insurer name</strong>, or a <strong>duplicate vehicle plate + date</strong> already in the database. Review and correct the source CSV before re-uploading.</p>
+          <TooltipContent side="bottom" className="max-w-[320px] text-xs">
+            <p className="font-medium mb-1.5">Rejected rows from CSV uploads</p>
+            <p className="mb-2">Rows are skipped during import and appear here for these reasons:</p>
+            <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+              <li><strong>Duplicate</strong> — vehicle + date already exists</li>
+              <li><strong>Missing insurer</strong> — insurer name is empty</li>
+              <li><strong>Date out of range</strong> — OCR date format invalid (use M/DD/YYYY, MM/DD/YYYY, or M/D/YYYY)</li>
+              <li><strong>No valid date</strong> — billing issue/transaction date missing or invalid</li>
+            </ul>
+            <p className="mt-2 text-muted-foreground">Review and correct the source CSV before re-uploading.</p>
           </TooltipContent>
         </Tooltip>
       </div>
