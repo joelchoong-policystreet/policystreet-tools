@@ -170,7 +170,7 @@ export function InsurerBillingTabContent({
               onClick={handleUploadClick}
             >
               <Upload className="mr-2 h-4 w-4" />
-              {uploading ? "Uploading…" : "Upload CSV/XLS"}
+              {uploading ? "Uploading…" : "Upload File"}
             </Button>
           </>
         )}
