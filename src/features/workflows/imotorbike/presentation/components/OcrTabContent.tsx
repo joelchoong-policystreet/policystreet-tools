@@ -76,7 +76,7 @@ export function OcrTabContent({
             <input
               ref={fileInputRef as React.RefObject<HTMLInputElement>}
               type="file"
-              accept=".csv"
+              accept=".csv,.xls,.xlsx"
               className="hidden"
               onChange={onFileChange}
             />
@@ -87,7 +87,7 @@ export function OcrTabContent({
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="mr-2 h-4 w-4" />
-              {uploading ? "Uploading…" : "Upload CSV"}
+              {uploading ? "Uploading…" : "Upload CSV/XLS"}
             </Button>
           </>
         )}

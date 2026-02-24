@@ -113,7 +113,7 @@ export function InsurerBillingTabContent({
           <DialogHeader>
             <DialogTitle>Select insurer for this upload</DialogTitle>
             <DialogDescription>
-              Choose which insurer this billing data is for. All rows in the CSV will be tagged with this insurer.
+              Choose which insurer this billing data is for. All rows in the CSV/XLS file will be tagged with this insurer.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-4">
@@ -159,7 +159,7 @@ export function InsurerBillingTabContent({
             <input
               ref={fileInputRef as React.RefObject<HTMLInputElement>}
               type="file"
-              accept=".csv"
+              accept=".csv,.xls,.xlsx"
               className="hidden"
               onChange={onFileChange}
             />
@@ -170,7 +170,7 @@ export function InsurerBillingTabContent({
               onClick={handleUploadClick}
             >
               <Upload className="mr-2 h-4 w-4" />
-              {uploading ? "Uploading…" : "Upload CSV"}
+              {uploading ? "Uploading…" : "Upload CSV/XLS"}
             </Button>
           </>
         )}

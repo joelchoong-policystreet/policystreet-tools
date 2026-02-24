@@ -1,11 +1,10 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import Papa from "papaparse";
+import { parseSpreadsheetToRows } from "@/lib/parse-spreadsheet";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/data/supabase/client";
 import type { Tables, TablesInsert } from "@/data/supabase/types";
-import { parseIMotorbikeCSV, type IMotorbikeRow } from "@/lib/imotorbike-csv";
 import {
   parsePurchasedDateTime,
   parseBillingDate,
@@ -549,9 +548,7 @@ export function useIMotorbikeProjectView() {
     setBillingUploadError(null);
     setUploading(true);
     try {
-      const text = await file.text();
-      const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-      const headers = (parsed.meta.fields ?? []).filter((h) => h != null && String(h).trim() !== "");
+      const { headers, rows: parsedRows } = await parseSpreadsheetToRows(file);
       const headerMap = new Map<string, string>();
       const norm = (s: string) => String(s).toLowerCase().trim().replace(/\s+/g, " ");
       headers.forEach((h) => headerMap.set(norm(h), String(h)));
@@ -611,9 +608,7 @@ export function useIMotorbikeProjectView() {
         }
         return null;
       };
-      const dataRows = (parsed.data ?? []).filter(
-        (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
-      );
+      const dataRows = parsedRows;
       const getInsurer = (raw: Record<string, string>) => get(raw, "insurer");
       const isValidDate = (raw: Record<string, string>) => {
         const dateVal = getDateForIssue(raw);
@@ -767,8 +762,7 @@ export function useIMotorbikeProjectView() {
     if (!file || !companyId || !projectId) return;
     setUploading(true);
     try {
-      const text = await file.text();
-      const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+      const { rows: ocrDataRows } = await parseSpreadsheetToRows(file);
       const csvToDb: Record<string, any> = {
         "date issue": "date_issue",
         date_issue: "date_issue",
@@ -796,9 +790,6 @@ export function useIMotorbikeProjectView() {
         "process duration": "process_duration",
       };
       const norm = (s: string) => String(s).toLowerCase().trim().replace(/\s+/g, " ");
-      const ocrDataRows = (parsed.data ?? []).filter(
-        (raw) => Object.values(raw).some((v) => v != null && String(v).trim() !== "")
-      );
       const built = ocrDataRows.map((raw) => {
         const row: any = {
           company_id: companyId,

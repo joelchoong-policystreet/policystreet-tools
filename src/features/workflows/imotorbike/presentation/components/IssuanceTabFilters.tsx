@@ -53,7 +53,7 @@ export function IssuanceTabFilters({
         <TableSearch value={searchQuery} onChange={onSearchChange} placeholder="Search customer, plate, quotation…" />
         <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
           <Upload className="mr-2 h-4 w-4" />
-          Upload CSV
+          Upload CSV/XLS
         </Button>
         <Button variant="outline" size="sm" onClick={onExport}>
           <Download className="mr-2 h-4 w-4" />
@@ -62,7 +62,7 @@ export function IssuanceTabFilters({
         <input
           ref={fileInputRef as React.RefObject<HTMLInputElement>}
           type="file"
-          accept=".csv"
+          accept=".csv,.xls,.xlsx"
           className="hidden"
           onChange={onFileChange}
         />
