@@ -59,6 +59,21 @@ export function parseBillingDate(value: string | null): Date | null {
   if (isValid(d)) return d;
   d = parse(s, "yyyy-MM-dd H:mm:ss", new Date());
   if (isValid(d)) return d;
+  // "1/2/2026 12:15" (d/m/yyyy - day/month/year, single/double digit variants)
+  d = parse(s, "d/M/yyyy HH:mm", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "d/M/yyyy H:mm", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "dd/M/yyyy HH:mm", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "d/MM/yyyy HH:mm", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "d/M/yyyy", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "dd/M/yyyy", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "d/MM/yyyy", new Date());
+  if (isValid(d)) return d;
   return null;
 }
 
