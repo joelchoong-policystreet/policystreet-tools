@@ -650,7 +650,18 @@ export function useIMotorbikeProjectView() {
       const validRows: Record<string, string>[] = [];
       const rejectedRows: { raw: Record<string, string>; reason: string }[] = [];
 
+      const getTrxStatus = (raw: Record<string, string>) =>
+        get(raw, "trx status", "trx_status", "TRX status", "TRX STATUS");
+      const isCancelled = (raw: Record<string, string>) => {
+        const status = getTrxStatus(raw);
+        return status != null && String(status).toLowerCase().trim() === "cancelled";
+      };
+
       for (const raw of dataRows) {
+        if (isCancelled(raw)) {
+          rejectedRows.push({ raw, reason: "Issuance cancelled" });
+          continue;
+        }
         const noDate = !isValidDate(raw);
         const noInsurer = !hasInsurer(raw);
         if (noDate || noInsurer) {

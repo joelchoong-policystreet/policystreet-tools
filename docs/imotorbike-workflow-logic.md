@@ -35,6 +35,7 @@ When a CSV is uploaded, rows are validated before insertion. Rejected rows are w
 
 | Rejection Reason | When it triggers |
 |------------------|-----------------|
+| **Issuance cancelled** | The TRX status column (e.g. "TRX status", "trx_status") has value "cancelled" — row is logged to Errors tab only |
 | **No valid date** | The issue date column is blank or cannot be parsed into a valid date |
 | **Missing insurer** | The insurer column is blank or absent |
 | **No valid date; Missing insurer** | Both conditions apply |

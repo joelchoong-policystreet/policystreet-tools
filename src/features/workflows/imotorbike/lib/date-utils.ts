@@ -54,21 +54,32 @@ export function parseBillingDate(value: string | null): Date | null {
   if (isValid(d)) return d;
   d = parse(s, "yyyy-MM-dd", new Date());
   if (isValid(d)) return d;
-  // "15 Feb 2026", "26 Jan 2026" (space separator)
-  d = parse(s, "d MMM yyyy", new Date(), { locale: enUS });
+  const refDate = new Date(2025, 0, 1);
+  // "15 Feb 2026", "26 Jan 2026" (space, 4-digit year)
+  d = parse(s, "d MMM yyyy", refDate, { locale: enUS });
   if (isValid(d)) return d;
-  d = parse(s, "dd MMM yyyy", new Date(), { locale: enUS });
+  d = parse(s, "dd MMM yyyy", refDate, { locale: enUS });
   if (isValid(d)) return d;
-  d = parse(s, "d MMMM yyyy", new Date(), { locale: enUS });
+  d = parse(s, "d MMMM yyyy", refDate, { locale: enUS });
   if (isValid(d)) return d;
-  // "15-Feb-2026", "2-Jan-2026" (hyphen separator)
-  d = parse(s, "d-MMM-yyyy", new Date(), { locale: enUS });
+  // "24 Feb 26", "5 Jan 25" (space, 2-digit year - same as yyyy for duplicate detection)
+  d = parse(s, "d MMM yy", refDate, { locale: enUS });
   if (isValid(d)) return d;
-  d = parse(s, "dd-MMM-yyyy", new Date(), { locale: enUS });
+  d = parse(s, "dd MMM yy", refDate, { locale: enUS });
   if (isValid(d)) return d;
-  d = parse(s, "d-MMM-yyyy HH:mm:ss", new Date(), { locale: enUS });
+  // "15-Feb-2026", "2-Jan-2026" (hyphen, 4-digit year)
+  d = parse(s, "d-MMM-yyyy", refDate, { locale: enUS });
   if (isValid(d)) return d;
-  d = parse(s, "dd-MMM-yyyy HH:mm:ss", new Date(), { locale: enUS });
+  d = parse(s, "dd-MMM-yyyy", refDate, { locale: enUS });
+  if (isValid(d)) return d;
+  d = parse(s, "d-MMM-yyyy HH:mm:ss", refDate, { locale: enUS });
+  if (isValid(d)) return d;
+  d = parse(s, "dd-MMM-yyyy HH:mm:ss", refDate, { locale: enUS });
+  if (isValid(d)) return d;
+  // "24-Feb-26" (hyphen, 2-digit year)
+  d = parse(s, "d-MMM-yy", refDate, { locale: enUS });
+  if (isValid(d)) return d;
+  d = parse(s, "dd-MMM-yy", refDate, { locale: enUS });
   if (isValid(d)) return d;
   // "1/2/2026 12:15" (d/m/yyyy - day/month/year, single/double digit variants)
   d = parse(s, "d/M/yyyy HH:mm", new Date());
@@ -79,11 +90,18 @@ export function parseBillingDate(value: string | null): Date | null {
   if (isValid(d)) return d;
   d = parse(s, "d/MM/yyyy HH:mm", new Date());
   if (isValid(d)) return d;
-  d = parse(s, "d/M/yyyy", new Date());
+  d = parse(s, "d/M/yyyy", refDate);
   if (isValid(d)) return d;
-  d = parse(s, "dd/M/yyyy", new Date());
+  d = parse(s, "dd/M/yyyy", refDate);
   if (isValid(d)) return d;
-  d = parse(s, "d/MM/yyyy", new Date());
+  d = parse(s, "d/MM/yyyy", refDate);
+  if (isValid(d)) return d;
+  // "1/2/26", "15/02/26" (slash, 2-digit year)
+  d = parse(s, "d/M/yy", refDate);
+  if (isValid(d)) return d;
+  d = parse(s, "dd/M/yy", refDate);
+  if (isValid(d)) return d;
+  d = parse(s, "d/MM/yy", refDate);
   if (isValid(d)) return d;
   // Excel serial date (e.g. 45321.61475694444 from XLSX when cell not formatted as date)
   const num = Number(s);
