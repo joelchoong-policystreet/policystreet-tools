@@ -31,8 +31,17 @@ export function parsePurchasedDateTime(value: string): Date | null {
 
 export function parseBillingDate(value: string | null): Date | null {
   if (!value?.trim()) return null;
-  const s = value.trim();
+  const s = value.trim().replace(/\s+/g, " ");
   let d = parseISO(s);
+  if (isValid(d)) return d;
+  // "2026-02-26 14:45:33" - try datetime formats early
+  d = parse(s, "yyyy-MM-dd HH:mm:ss", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "yyyy-MM-dd H:mm:ss", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "yyyy-MM-dd HH:mm:ss.SSS", new Date());
+  if (isValid(d)) return d;
+  d = parse(s, "yyyy-MM-dd HH:mm", new Date());
   if (isValid(d)) return d;
   d = parse(s, "dd/MM/yyyy", new Date());
   if (isValid(d)) return d;
@@ -56,11 +65,6 @@ export function parseBillingDate(value: string | null): Date | null {
   if (isValid(d)) return d;
   d = parse(s, "d-MMM-yyyy", new Date());
   if (isValid(d)) return d;
-  // Datetime: "2026-01-08 9:14:45", "2026-01-08 09:14:45"
-  d = parse(s, "yyyy-MM-dd HH:mm:ss", new Date());
-  if (isValid(d)) return d;
-  d = parse(s, "yyyy-MM-dd H:mm:ss", new Date());
-  if (isValid(d)) return d;
   // "1/2/2026 12:15" (d/m/yyyy - day/month/year, single/double digit variants)
   d = parse(s, "d/M/yyyy HH:mm", new Date());
   if (isValid(d)) return d;
@@ -76,6 +80,14 @@ export function parseBillingDate(value: string | null): Date | null {
   if (isValid(d)) return d;
   d = parse(s, "d/MM/yyyy", new Date());
   if (isValid(d)) return d;
+  // Excel serial date (e.g. 45321.61475694444 from XLSX when cell not formatted as date)
+  const num = Number(s);
+  if (!Number.isNaN(num) && num >= 1 && num < 2958466) {
+    const excelEpoch = new Date(1899, 11, 30);
+    const ms = (num - (num >= 60 ? 1 : 0)) * 86400000;
+    d = new Date(excelEpoch.getTime() + ms);
+    if (isValid(d)) return d;
+  }
   return null;
 }
 

@@ -591,7 +591,16 @@ export function useIMotorbikeProjectView() {
           "transaction_date",
           "trans date",
           "date time",
-          "datetime"
+          "datetime",
+          "billing date",
+          "billing_date",
+          "created date",
+          "created_date",
+          "created at",
+          "created_at",
+          "timestamp",
+          "date of issue",
+          "date_of_issue"
         );
         if (v !== null) return v;
         for (const h of headers) {
@@ -601,7 +610,10 @@ export function useIMotorbikeProjectView() {
             n === "transaction_date" ||
             (n.includes("issue") && n.includes("date")) ||
             (n.includes("transaction") && n.includes("date")) ||
-            (n.includes("date") && n.includes("time"))
+            (n.includes("date") && n.includes("time")) ||
+            (n.includes("billing") && n.includes("date")) ||
+            (n.includes("created") && (n.includes("date") || n.includes("at"))) ||
+            n === "timestamp"
           ) {
             const val = raw[h];
             if (val !== undefined && val !== null && String(val).trim() !== "") return String(val).trim();
