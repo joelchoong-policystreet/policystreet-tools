@@ -9,6 +9,7 @@ import {
   format,
   type Interval,
 } from "date-fns";
+import { enUS } from "date-fns/locale";
 
 export type FilterPreset = "all_time" | "this_month" | "last_month" | "custom";
 export type DateRange = { from: Date; to?: Date };
@@ -53,17 +54,21 @@ export function parseBillingDate(value: string | null): Date | null {
   if (isValid(d)) return d;
   d = parse(s, "yyyy-MM-dd", new Date());
   if (isValid(d)) return d;
-  // "15 Feb 2026", "26 Jan 2026" (day + abbreviated/full month + year)
-  d = parse(s, "d MMM yyyy", new Date());
+  // "15 Feb 2026", "26 Jan 2026" (space separator)
+  d = parse(s, "d MMM yyyy", new Date(), { locale: enUS });
   if (isValid(d)) return d;
-  d = parse(s, "dd MMM yyyy", new Date());
+  d = parse(s, "dd MMM yyyy", new Date(), { locale: enUS });
   if (isValid(d)) return d;
-  d = parse(s, "d MMMM yyyy", new Date());
+  d = parse(s, "d MMMM yyyy", new Date(), { locale: enUS });
   if (isValid(d)) return d;
-  // "dd-MMM-yyyy" e.g. 02-Jan-2026
-  d = parse(s, "dd-MMM-yyyy", new Date());
+  // "15-Feb-2026", "2-Jan-2026" (hyphen separator)
+  d = parse(s, "d-MMM-yyyy", new Date(), { locale: enUS });
   if (isValid(d)) return d;
-  d = parse(s, "d-MMM-yyyy", new Date());
+  d = parse(s, "dd-MMM-yyyy", new Date(), { locale: enUS });
+  if (isValid(d)) return d;
+  d = parse(s, "d-MMM-yyyy HH:mm:ss", new Date(), { locale: enUS });
+  if (isValid(d)) return d;
+  d = parse(s, "dd-MMM-yyyy HH:mm:ss", new Date(), { locale: enUS });
   if (isValid(d)) return d;
   // "1/2/2026 12:15" (d/m/yyyy - day/month/year, single/double digit variants)
   d = parse(s, "d/M/yyyy HH:mm", new Date());
