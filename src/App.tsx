@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/features/auth/presentation/useAuth";
+import { AdminRoute } from "@/features/admin/presentation/AdminRoute";
 import { Sidebar } from "@/features/layout/presentation/Sidebar";
 import { ProjectPanel } from "@/features/layout/presentation/ProjectPanel";
 import { LoadingFallback } from "@/shared/components/LoadingFallback";
@@ -57,9 +58,9 @@ function AppLayout() {
               <Route path="/workflows/imotorbike/:projectId" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
               <Route path="/workflows/:workflowId" element={<WorkflowDefaultPage />} />
               <Route path="/workflows/:workflowId/:projectId" element={<ProjectIMotorbikePage />} />
-              <Route path="/admin/users" element={<AdminUsersPage />} />
-              <Route path="/admin/roles" element={<AdminRolesPage />} />
-              <Route path="/admin/audit-logs" element={<AdminAuditLogsPage />} />
+              <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+              <Route path="/admin/roles" element={<AdminRoute><AdminRolesPage /></AdminRoute>} />
+              <Route path="/admin/audit-logs" element={<AdminRoute><AdminAuditLogsPage /></AdminRoute>} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>

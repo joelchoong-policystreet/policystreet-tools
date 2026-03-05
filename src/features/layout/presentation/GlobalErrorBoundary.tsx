@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export function GlobalErrorBoundary({ error, resetErrorBoundary }: FallbackProps) {
     const err = error as Error;
+    console.error("[GlobalErrorBoundary]", err?.message, err);
 
     return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">

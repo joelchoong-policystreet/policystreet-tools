@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/features/auth/presentation/useAuth";
+import { useIsAdmin } from "@/features/auth/presentation/useIsAdmin";
 
 interface NavItemProps {
   to: string;
@@ -85,6 +86,7 @@ export function Sidebar() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { signOut } = useAuth();
+  const { isAdmin } = useIsAdmin();
   const isActive = (path: string) => location.pathname === path;
   const isDatabaseQuotation = () => location.pathname === "/database" && searchParams.get("view") === "quotation";
   const isDatabaseIssuance = () => location.pathname === "/database" && (searchParams.get("view") === "issuance" || !searchParams.get("view"));
@@ -123,13 +125,16 @@ export function Sidebar() {
           <NavItem to="/workflows/affiliates" icon={Workflow} label="Affiliates" isActive={isWorkflowActive("affiliates")} />
         </Section>
 
-        <div className="mx-2 my-1 border-t border-sidebar-border" />
-
-        <Section label="Admin" icon={Users}>
-          <NavItem to="/admin/users" icon={Users} label="Users" isActive={isActive("/admin/users")} />
-          <NavItem to="/admin/roles" icon={Shield} label="Roles" isActive={isActive("/admin/roles")} />
-          <NavItem to="/admin/audit-logs" icon={ClipboardList} label="Audit Logs" isActive={isActive("/admin/audit-logs")} />
-        </Section>
+        {isAdmin && (
+          <>
+            <div className="mx-2 my-1 border-t border-sidebar-border" />
+            <Section label="Admin" icon={Users}>
+              <NavItem to="/admin/users" icon={Users} label="Users" isActive={isActive("/admin/users")} />
+              <NavItem to="/admin/roles" icon={Shield} label="Roles" isActive={isActive("/admin/roles")} />
+              <NavItem to="/admin/audit-logs" icon={ClipboardList} label="Audit Logs" isActive={isActive("/admin/audit-logs")} />
+            </Section>
+          </>
+        )}
       </nav>
 
       <div className="border-t border-sidebar-border w-full p-2">

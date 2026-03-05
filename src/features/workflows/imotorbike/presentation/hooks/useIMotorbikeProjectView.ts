@@ -749,7 +749,7 @@ export function useIMotorbikeProjectView() {
         await queryClient.invalidateQueries({ queryKey: ["insurer-billing", companyId, projectId] });
       }
       if (rejectedRows.length > 0 && companyId) {
-        const errorInserts = rejectedRows.map(({ raw, reason }) => ({
+        const errorInserts: TablesInsert<"upload_errors">[] = rejectedRows.map(({ raw, reason }) => ({
           company_id: companyId,
           source: "insurer_billing",
           workflow: projectId ?? null,
@@ -757,7 +757,7 @@ export function useIMotorbikeProjectView() {
           rejection_reason: reason,
           file_name: file.name,
         }));
-        await supabase.from("upload_errors" as any).insert(errorInserts);
+        await supabase.from("upload_errors").insert(errorInserts);
         await queryClient.invalidateQueries({ queryKey: ["upload-errors", companyId, projectId] });
       }
       const skippedCount = rejectedRows.length;
@@ -914,7 +914,7 @@ export function useIMotorbikeProjectView() {
         });
       }
       if (rejectedRows.length > 0 && companyId) {
-        const errorInserts = rejectedRows.map(({ raw, reason }) => ({
+        const errorInserts: TablesInsert<"upload_errors">[] = rejectedRows.map(({ raw, reason }) => ({
           company_id: companyId,
           source: "ocr",
           workflow: projectId,
@@ -922,7 +922,7 @@ export function useIMotorbikeProjectView() {
           rejection_reason: reason,
           file_name: file.name,
         }));
-        await supabase.from("upload_errors" as any).insert(errorInserts);
+        await supabase.from("upload_errors").insert(errorInserts);
       }
       await queryClient.invalidateQueries({ queryKey: ["ocr", companyId, projectId] });
       if (rejectedRows.length > 0) {
