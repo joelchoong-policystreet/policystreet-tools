@@ -163,7 +163,8 @@ All significant user actions are written to `audit_logs`.
 | **User** | New user added | User email |
 | **User** | User activated/deactivated | Display name + new status |
 | **Workflow** | Insurer Billing CSV uploaded | `{projectId} - N rows` |
-| **Workflow** | OCR Data CSV uploaded | `{projectId} - N rows` |
+| **Workflow** | OCR Data CSV uploaded (manual) | `{projectId} - N row(s)` |
+| **Workflow** | OCR Data CSV uploaded (automated) | `ocr_data_table - N row(s)` (database trigger when insert bypasses frontend) |
 | **Workflow** | Issuance CSV exported | `{projectId} - N rows` |
 
 ### 7.1 Audit Implementation

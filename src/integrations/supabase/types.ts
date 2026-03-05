@@ -17,6 +17,7 @@ export type Database = {
       audit_logs: {
         Row: {
           change: string
+          details: Record<string, unknown> | null
           event_type: string
           id: string
           item_affected: string
@@ -25,6 +26,7 @@ export type Database = {
         }
         Insert: {
           change: string
+          details?: Record<string, unknown> | null
           event_type: string
           id?: string
           item_affected: string
@@ -33,6 +35,7 @@ export type Database = {
         }
         Update: {
           change?: string
+          details?: Record<string, unknown> | null
           event_type?: string
           id?: string
           item_affected?: string

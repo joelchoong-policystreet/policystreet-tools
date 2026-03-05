@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ClipboardList, Search, Download, Settings } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/data/supabase/client";
 import { PageHeader } from "@/shared/components/PageHeader";
@@ -30,6 +36,11 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
+type AuditDetails = {
+  before?: string | null;
+  after?: string | null;
+};
+
 type AuditLogEntry = {
   id: string;
   time: Date;
@@ -37,6 +48,7 @@ type AuditLogEntry = {
   eventType: string;
   change: string;
   itemAffected: string;
+  details: AuditDetails | null;
 };
 
 const PAGE_SIZE = 10;
@@ -53,10 +65,86 @@ function filterByTime(entries: AuditLogEntry[], filter: TimeFilter): AuditLogEnt
   return entries.filter((e) => e.time >= from);
 }
 
+function DetailsContent({ entry }: { entry: AuditLogEntry }) {
+  const d = entry.details;
+  const issuanceMatch = entry.itemAffected.match(/^imotorbike_billing_normalised\/([a-f0-9-]+)$/);
+  const normalisedId = issuanceMatch?.[1];
+
+  const { data: fieldHistory = [], isLoading } = useQuery({
+    queryKey: ["imotorbike-field-history", normalisedId],
+    queryFn: async () => {
+      if (!normalisedId) return [];
+      const { data, error } = await supabase
+        .from("imotorbike_billing_field_history")
+        .select("field_name, old_value, new_value, changed_by, changed_at")
+        .eq("normalised_id", normalisedId)
+        .order("changed_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!normalisedId,
+  });
+
+  if (d && (d.before !== undefined || d.after !== undefined)) {
+    return (
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div>
+            <p className="font-medium text-muted-foreground">Before</p>
+            <p className="mt-0.5 rounded bg-muted px-2 py-1 font-mono">
+              {d.before ?? <span className="text-muted-foreground">—</span>}
+            </p>
+          </div>
+          <div>
+            <p className="font-medium text-muted-foreground">After</p>
+            <p className="mt-0.5 rounded bg-muted px-2 py-1 font-mono">
+              {d.after ?? <span className="text-muted-foreground">—</span>}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (normalisedId) {
+    if (isLoading) return <p className="text-sm text-muted-foreground">Loading change history…</p>;
+    if (fieldHistory.length === 0) return <p className="text-sm text-muted-foreground">No field history for this row.</p>;
+    return (
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-muted-foreground">Field change history</p>
+        <div className="space-y-2 max-h-60 overflow-y-auto">
+          {fieldHistory.map((h, i) => (
+            <div key={i} className="rounded border bg-muted/30 p-3 text-sm">
+              <p className="mb-1.5 font-medium">{h.field_name}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-xs text-muted-foreground">Before:</span>{" "}
+                  <span className="font-mono">{h.old_value ?? "—"}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">After:</span>{" "}
+                  <span className="font-mono">{h.new_value ?? "—"}</span>
+                </div>
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {format(new Date(h.changed_at), "d MMM, HH:mm")} · {h.changed_by}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return <p className="text-sm text-muted-foreground">No additional details.</p>;
+}
+
 export default function AdminAuditLogsPage() {
   const [keyword, setKeyword] = useState("");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [detailsEntry, setDetailsEntry] = useState<AuditLogEntry | null>(null);
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["audit-logs"],
@@ -74,6 +162,7 @@ export default function AdminAuditLogsPage() {
         eventType: d.event_type,
         change: d.change,
         itemAffected: d.item_affected,
+        details: (d.details as AuditDetails) ?? null,
       }));
     },
   });
@@ -229,6 +318,7 @@ export default function AdminAuditLogsPage() {
                           <button
                             type="button"
                             className="text-sm text-primary hover:underline"
+                            onClick={() => setDetailsEntry(entry)}
                           >
                             Show more
                           </button>
@@ -241,6 +331,26 @@ export default function AdminAuditLogsPage() {
             )}
           </CardContent>
         </Card>
+
+        <Dialog open={!!detailsEntry} onOpenChange={(open) => !open && setDetailsEntry(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Change details</DialogTitle>
+            </DialogHeader>
+            {detailsEntry && (
+              <div className="space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  <p>
+                    <span className="font-medium text-foreground">{detailsEntry.change}</span>
+                  </p>
+                  <p className="mt-1">{detailsEntry.itemAffected}</p>
+                  <p className="mt-1">{format(detailsEntry.time, "d MMM, yyyy HH:mm:ss")} · {detailsEntry.user}</p>
+                </div>
+                <DetailsContent entry={detailsEntry} />
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

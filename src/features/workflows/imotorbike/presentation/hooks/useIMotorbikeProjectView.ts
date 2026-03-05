@@ -904,6 +904,14 @@ export function useIMotorbikeProjectView() {
         const { error: err } = await supabase.from("ocr_data_table").insert(toInsert);
         if (err) throw err;
         importedCount = toInsert.length;
+
+        const { data: { user } } = await supabase.auth.getUser();
+        await supabase.from("audit_logs").insert({
+          user_name: user?.email || "Unknown User",
+          event_type: "Workflow",
+          change: "OCR Data CSV uploaded",
+          item_affected: `${projectId || "General"} - ${importedCount} row(s)`,
+        });
       }
       if (rejectedRows.length > 0 && companyId) {
         const errorInserts = rejectedRows.map(({ raw, reason }) => ({
