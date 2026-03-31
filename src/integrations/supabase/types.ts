@@ -424,62 +424,30 @@ export type Database = {
           },
         ]
       }
-      milestone_tags: {
-        Row: {
-          id: string
-          milestone_id: string
-          tag: string
-        }
-        Insert: {
-          id: string
-          milestone_id: string
-          tag: string
-        }
-        Update: {
-          id?: string
-          milestone_id?: string
-          tag?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "milestone_tags_milestone_id_fkey"
-            columns: ["milestone_id"]
-            isOneToOne: false
-            referencedRelation: "milestones"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       milestone_task_checklist_items: {
         Row: {
           completed: boolean
-          completed_on: string | null
+          completed_at: string | null
           created_at: string
           id: string
           label: string
-          position: number
           task_id: string
-          updated_at: string
         }
         Insert: {
           completed?: boolean
-          completed_on?: string | null
+          completed_at?: string | null
           created_at?: string
-          id: string
+          id?: string
           label: string
-          position?: number
           task_id: string
-          updated_at?: string
         }
         Update: {
           completed?: boolean
-          completed_on?: string | null
+          completed_at?: string | null
           created_at?: string
           id?: string
           label?: string
-          position?: number
           task_id?: string
-          updated_at?: string
         }
         Relationships: [
           {
@@ -493,70 +461,32 @@ export type Database = {
       }
       milestone_tasks: {
         Row: {
+          completed_at: string | null
           created_at: string
           due_date: string | null
-          due_label: string | null
           id: string
           milestone_id: string
-          position: number
           title: string
-          updated_at: string
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
           due_date?: string | null
-          due_label?: string | null
-          id: string
+          id?: string
           milestone_id: string
-          position?: number
           title: string
-          updated_at?: string
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
           due_date?: string | null
-          due_label?: string | null
           id?: string
           milestone_id?: string
-          position?: number
           title?: string
-          updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "milestone_tasks_milestone_id_fkey"
-            columns: ["milestone_id"]
-            isOneToOne: false
-            referencedRelation: "milestones"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      milestone_updates: {
-        Row: {
-          author_name: string
-          created_at: string
-          id: string
-          message: string
-          milestone_id: string
-        }
-        Insert: {
-          author_name: string
-          created_at?: string
-          id: string
-          message: string
-          milestone_id: string
-        }
-        Update: {
-          author_name?: string
-          created_at?: string
-          id?: string
-          message?: string
-          milestone_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "milestone_updates_milestone_id_fkey"
             columns: ["milestone_id"]
             isOneToOne: false
             referencedRelation: "milestones"
@@ -572,14 +502,14 @@ export type Database = {
           description: string
           driver: string
           due_date: string | null
-          external_url: string | null
           id: string
-          list_preview: string
+          link: string | null
           quarter: string
           status: string
+          tags: string[]
           tier: string
           title: string
-          updated_at: string
+          user_id: string
           year: number
         }
         Insert: {
@@ -589,14 +519,14 @@ export type Database = {
           description: string
           driver: string
           due_date?: string | null
-          external_url?: string | null
-          id: string
-          list_preview: string
+          id?: string
+          link?: string | null
           quarter: string
           status: string
+          tags?: string[]
           tier: string
           title: string
-          updated_at?: string
+          user_id: string
           year: number
         }
         Update: {
@@ -606,14 +536,14 @@ export type Database = {
           description?: string
           driver?: string
           due_date?: string | null
-          external_url?: string | null
           id?: string
-          list_preview?: string
+          link?: string | null
           quarter?: string
           status?: string
+          tags?: string[]
           tier?: string
           title?: string
-          updated_at?: string
+          user_id?: string
           year?: number
         }
         Relationships: []
