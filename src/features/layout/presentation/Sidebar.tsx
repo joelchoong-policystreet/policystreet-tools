@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   Shield,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -92,6 +93,10 @@ export function Sidebar() {
   const isDatabaseIssuance = () => location.pathname === "/database" && (searchParams.get("view") === "issuance" || !searchParams.get("view"));
   const isWorkflowActive = (workflowId: string) =>
     location.pathname.startsWith(`/workflows/${workflowId}`);
+  const isMilestonesSuite = () =>
+    location.pathname.startsWith("/milestones") ||
+    location.pathname === "/progress" ||
+    location.pathname === "/branding";
 
   return (
     <div className="fixed left-0 top-0 h-screen w-[110px] border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col items-center z-50">
@@ -108,8 +113,9 @@ export function Sidebar() {
       </Link>
 
       <nav className="flex-1 w-full overflow-y-auto px-2 py-2 space-y-1">
-        <Section label="Tools" icon={FileText}>
+        <Section label="Tools" icon={FileText} defaultOpen>
           <NavItem to="/report" icon={FileText} label="Report Generator" isActive={isActive("/report")} />
+          <NavItem to="/milestones" icon={Flag} label="Milestones" isActive={isMilestonesSuite()} />
         </Section>
 
         <div className="mx-2 my-1 border-t border-sidebar-border" />

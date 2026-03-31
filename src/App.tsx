@@ -21,6 +21,7 @@ const AdminRolesPage = React.lazy(() => import("@/features/admin/roles/presentat
 const AdminAuditLogsPage = React.lazy(() => import("@/features/admin/audit-logs/presentation/AdminAuditLogsPage"));
 const DatabasePage = React.lazy(() => import("@/features/database/presentation/DatabasePage"));
 const ProfilePage = React.lazy(() => import("@/features/profile/presentation/ProfilePage"));
+const MilestonesPage = React.lazy(() => import("@/features/milestones/presentation/MilestonesPage"));
 const NotFoundPage = React.lazy(() => import("@/features/not-found/presentation/NotFoundPage"));
 
 const SIDEBAR_WIDTH = 110;
@@ -53,6 +54,7 @@ function AppLayout() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/report" element={<ReportPage />} />
+              <Route path="/milestones" element={<MilestonesPage />} />
               <Route path="/database" element={<DatabasePage />} />
               <Route path="/workflows/imotorbike" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
               <Route path="/workflows/imotorbike/:projectId" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
