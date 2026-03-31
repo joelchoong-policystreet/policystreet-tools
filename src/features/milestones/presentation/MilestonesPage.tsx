@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, getQuarter, getYear, parseISO } from "date-fns";
+import Papa from "papaparse";
 import {
   Building2,
   Calendar,
@@ -10,9 +11,11 @@ import {
   ListChecks,
   Pin,
   Share2,
+  Upload,
   User,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
