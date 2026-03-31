@@ -30,13 +30,12 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-import {
-  DEMO_MILESTONES,
-  type DemoMilestone,
-  type DemoMilestoneStatus,
-} from "./milestone-demo-data";
+import type { DemoMilestone, DemoMilestoneStatus } from "./milestone-demo-data";
 import { MilestoneEditDialog } from "./MilestoneEditDialog";
 import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/data/supabase/client";
+import Papa from "papaparse";
 
 const ACCENT = {
   text: "text-[#3b5bfd]",
@@ -126,8 +125,111 @@ type MilestoneUpdate = {
   author: string;
 };
 
+type DbMilestone = {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  status: DemoMilestoneStatus;
+  tier: "major" | "minor";
+  year: number;
+  quarter: "Q1" | "Q2" | "Q3" | "Q4";
+  due_date: string | null;
+  tags: string[];
+  driver: string;
+  department: string;
+  created_at: string;
+  link: string | null;
+};
+
+async function fetchMilestones(): Promise<DbMilestone[]> {
+  const { data, error } = await supabase
+    .from("milestones")
+    .select(
+      [
+        "id",
+        "user_id",
+        "title",
+        "description",
+        "status",
+        "tier",
+        "year",
+        "quarter",
+        "due_date",
+        "tags",
+        "driver",
+        "department",
+        "created_at",
+        "link",
+      ].join(","),
+    )
+    .order("year", { ascending: true })
+    .order("quarter", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as DbMilestone[];
+}
+
+function mapDbToDemo(m: DbMilestone): DemoMilestone {
+  const desc = m.description ?? "";
+  const preview =
+    desc.length <= 140 ? (desc || "No description") : `${desc.slice(0, 137)}…`;
+
+  return {
+    id: m.id,
+    title: m.title,
+    description: desc,
+    listPreview: preview,
+    tier: m.tier,
+    quarter: m.quarter,
+    year: m.year,
+    status: m.status,
+    dueDate: m.due_date ?? "",
+    driver: m.driver,
+    department: m.department,
+    tags: m.tags ?? [],
+    externalUrl: m.link ?? undefined,
+    tasks: [],
+  };
+}
+
+function normaliseStatus(raw: string | undefined): DemoMilestoneStatus {
+  const base = (raw ?? "").toLowerCase().replace(/\s+/g, "_");
+  const allowed: DemoMilestoneStatus[] = [
+    "not_started",
+    "in_progress",
+    "at_risk",
+    "dropped",
+    "postponed",
+    "merged",
+    "completed",
+  ];
+  if (allowed.includes(base as DemoMilestoneStatus)) return base as DemoMilestoneStatus;
+  if (base === "inprogress") return "in_progress";
+  if (base === "notstarted") return "not_started";
+  return "not_started";
+}
+
+function normaliseTier(raw: string | undefined): "major" | "minor" {
+  const base = (raw ?? "").toLowerCase().trim();
+  return base === "minor" ? "minor" : "major";
+}
+
+function normaliseQuarter(raw: string | undefined): DbMilestone["quarter"] {
+  const base = (raw ?? "").toUpperCase().trim();
+  if (base === "Q1" || base === "Q2" || base === "Q3" || base === "Q4") return base;
+  const today = new Date();
+  return `Q${getQuarter(today)}` as DbMilestone["quarter"];
+}
+
 export default function MilestonesPage() {
-  const [milestones, setMilestones] = useState<DemoMilestone[]>(() => [...DEMO_MILESTONES]);
+  const { data: dbMilestones = [], isLoading, refetch } = useQuery({
+    queryKey: ["milestones"],
+    queryFn: fetchMilestones,
+  });
+
+  const [milestones, setMilestones] = useState<DemoMilestone[]>([]);
   const [searchParams] = useSearchParams();
   const [year, setYear] = useState(2026);
   const [quarter, setQuarter] = useState<string>("Q1");
@@ -140,6 +242,10 @@ export default function MilestonesPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<"create" | "edit">("edit");
   const [editTarget, setEditTarget] = useState<DemoMilestone | null>(null);
+
+  useEffect(() => {
+    setMilestones(dbMilestones.map(mapDbToDemo));
+  }, [dbMilestones]);
 
   const drivers = useMemo(() => {
     const s = new Set(milestones.map((m) => m.driver));
@@ -185,6 +291,8 @@ export default function MilestonesPage() {
   const [checklistState, setChecklistState] = useState<Record<string, boolean>>({});
   const [updatesByMilestone, setUpdatesByMilestone] = useState<Record<string, MilestoneUpdate[]>>({});
   const [newUpdateMessage, setNewUpdateMessage] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setChecklistState({});
@@ -310,6 +418,92 @@ export default function MilestonesPage() {
       [selectedId]: [...(prev[selectedId] ?? []), entry],
     }));
     setNewUpdateMessage("");
+  };
+
+  const handleUploadCsvClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleCsvFileChange: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const text = await file.text();
+      const parsed = Papa.parse<Record<string, string>>(text, {
+        header: true,
+        skipEmptyLines: true,
+      });
+
+      if (parsed.errors.length > 0) {
+        toast.error("Could not parse CSV. Please check the file format.");
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) {
+        toast.error("You must be signed in to upload milestones.");
+        return;
+      }
+
+      const rows = (parsed.data ?? [])
+        .map((row) => {
+          const tagsRaw = row.tags ?? row.Tags ?? "";
+          const tags =
+            typeof tagsRaw === "string"
+              ? tagsRaw
+                  .split(",")
+                  .map((t) => t.trim())
+                  .filter(Boolean)
+              : [];
+
+          const yearRaw = row.year ?? row.Year;
+          const yearParsed = Number.parseInt(
+            yearRaw && yearRaw.trim() !== "" ? yearRaw : String(getYear(new Date())),
+            10,
+          );
+
+          const due =
+            (row.due_date ?? row.dueDate ?? row.DueDate)?.trim() || null;
+
+          return {
+            user_id: authData.user.id,
+            title: row.title ?? row.Title ?? "",
+            description: row.description ?? row.Description ?? "",
+            status: normaliseStatus(row.status ?? row.Status),
+            tier: normaliseTier(row.tier ?? row.Tier),
+            year: Number.isNaN(yearParsed) ? getYear(new Date()) : yearParsed,
+            quarter: normaliseQuarter(row.quarter ?? row.Quarter),
+            due_date: due,
+            tags,
+            driver: (row.driver ?? row.Driver ?? "").trim() || "—",
+            department: (row.department ?? row.Department ?? "").trim() || "—",
+            link: (row.link ?? row.Link ?? "").trim() || null,
+          };
+        })
+        .filter((r) => r.title.trim().length > 0);
+
+      if (rows.length === 0) {
+        toast.error("No valid rows found in CSV.");
+        return;
+      }
+
+      const { error } = await supabase.from("milestones").insert(rows);
+      if (error) {
+        console.error("Milestones CSV upload error", error);
+        toast.error(`Upload failed: ${error.message}`);
+        return;
+      }
+
+      toast.success(`Uploaded ${rows.length} milestone(s).`);
+      void refetch();
+    } catch {
+      toast.error("Unexpected error while uploading CSV.");
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
   };
 
   const openCreateMilestone = () => {
@@ -619,6 +813,22 @@ export default function MilestonesPage() {
             >
               + New milestone
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={uploading}
+              className="h-10 rounded-lg border-dashed"
+              onClick={handleUploadCsvClick}
+            >
+              {uploading ? "Uploading…" : "Upload CSV"}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleCsvFileChange}
+              className="hidden"
+            />
           </div>
         </section>
 
