@@ -526,6 +526,32 @@ export type Database = {
           },
         ]
       }
+      milestone_tags: {
+        Row: {
+          id: string
+          milestone_id: string
+          tag: string
+        }
+        Insert: {
+          id: string
+          milestone_id: string
+          tag: string
+        }
+        Update: {
+          id?: string
+          milestone_id?: string
+          tag?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestone_tags_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       milestones: {
         Row: {
           completed_at: string | null
@@ -538,7 +564,8 @@ export type Database = {
           link: string | null
           quarter: string
           status: string
-          tags: string[]
+          /** Legacy mirror; canonical tags live in `milestone_tags`. */
+          tags?: string[]
           tier: string
           title: string
           user_id: string

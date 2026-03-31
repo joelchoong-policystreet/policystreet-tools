@@ -36,10 +36,12 @@ import { supabase } from "@/data/supabase/client";
 import Papa from "papaparse";
 import {
   deleteMilestoneById,
+  fetchMilestoneTagsByMilestoneIds,
   fetchMilestoneUpdates,
   insertMilestoneUpdate,
   persistMilestone,
   setChecklistItemCompleted,
+  syncMilestoneTags,
   updateMilestoneStatus,
 } from "../data/milestonePersistence";
 
@@ -142,7 +144,6 @@ type DbMilestone = {
   year: number;
   quarter: "Q1" | "Q2" | "Q3" | "Q4";
   due_date: string | null;
-  tags: string[];
   driver: string;
   department: string;
   created_at: string;
@@ -181,7 +182,6 @@ async function fetchMilestones(): Promise<DbMilestone[]> {
         "year",
         "quarter",
         "due_date",
-        "tags",
         "driver",
         "department",
         "created_at",
@@ -218,7 +218,7 @@ async function fetchChecklist(taskIds: string[]): Promise<DbChecklistItem[]> {
   return (data ?? []) as DbChecklistItem[];
 }
 
-function mapDbToDemo(m: DbMilestone, tasks: DemoTask[]): DemoMilestone {
+function mapDbToDemo(m: DbMilestone, tasks: DemoTask[], tags: string[]): DemoMilestone {
   const desc = m.description ?? "";
   const preview =
     desc.length <= 140 ? (desc || "No description") : `${desc.slice(0, 137)}…`;
@@ -235,7 +235,7 @@ function mapDbToDemo(m: DbMilestone, tasks: DemoTask[]): DemoMilestone {
     dueDate: m.due_date ?? "",
     driver: m.driver,
     department: m.department,
-    tags: m.tags ?? [],
+    tags,
     externalUrl: m.link ?? undefined,
     tasks,
   };
@@ -278,6 +278,12 @@ export default function MilestonesPage() {
   });
 
   const milestoneIds = useMemo(() => dbMilestones.map((m) => m.id), [dbMilestones]);
+
+  const { data: tagsByMilestoneId = {} } = useQuery({
+    queryKey: ["milestone-tags", milestoneIds],
+    queryFn: () => fetchMilestoneTagsByMilestoneIds(milestoneIds),
+    enabled: milestoneIds.length > 0,
+  });
 
   const { data: dbTasks = [] } = useQuery({
     queryKey: ["milestone-tasks", milestoneIds],
@@ -336,8 +342,11 @@ export default function MilestonesPage() {
   }, [dbTasks, checklistByTask]);
 
   const milestones = useMemo(
-    () => dbMilestones.map((m) => mapDbToDemo(m, tasksByMilestone[m.id] ?? [])),
-    [dbMilestones, tasksByMilestone],
+    () =>
+      dbMilestones.map((m) =>
+        mapDbToDemo(m, tasksByMilestone[m.id] ?? [], tagsByMilestoneId[m.id] ?? []),
+      ),
+    [dbMilestones, tasksByMilestone, tagsByMilestoneId],
   );
 
   const drivers = useMemo(() => {
@@ -607,15 +616,22 @@ export default function MilestonesPage() {
         return;
       }
 
-      const { error } = await supabase.from("milestones").insert(rows);
+      const milestonesPayload = rows.map(({ tags: _tags, ...rest }) => rest);
+      const { data: inserted, error } = await supabase.from("milestones").insert(milestonesPayload).select("id");
       if (error) {
         console.error("Milestones CSV upload error", error);
         toast.error(`Upload failed: ${error.message}`);
         return;
       }
 
+      const insertedRows = inserted ?? [];
+      for (let i = 0; i < insertedRows.length; i++) {
+        await syncMilestoneTags(insertedRows[i].id, rows[i]?.tags ?? []);
+      }
+
       toast.success(`Uploaded ${rows.length} milestone(s).`);
       void refetch();
+      await queryClient.invalidateQueries({ queryKey: ["milestone-tags"] });
     } catch {
       toast.error("Unexpected error while uploading CSV.");
     } finally {
@@ -646,6 +662,7 @@ export default function MilestonesPage() {
     await persistMilestone(m, editMode === "create" ? "create" : "edit", auth.user.id);
     setSelectedId(m.id);
     await queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    await queryClient.invalidateQueries({ queryKey: ["milestone-tags"] });
     await queryClient.invalidateQueries({ queryKey: ["milestone-tasks"] });
     await queryClient.invalidateQueries({ queryKey: ["milestone-task-checklist"] });
   };
@@ -654,6 +671,7 @@ export default function MilestonesPage() {
     await deleteMilestoneById(id);
     setSelectedId((cur) => (cur === id ? null : cur));
     await queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    await queryClient.invalidateQueries({ queryKey: ["milestone-tags"] });
     await queryClient.invalidateQueries({ queryKey: ["milestone-tasks"] });
     await queryClient.invalidateQueries({ queryKey: ["milestone-task-checklist"] });
     await queryClient.invalidateQueries({ queryKey: ["milestone-updates"] });
