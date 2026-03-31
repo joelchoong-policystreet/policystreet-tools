@@ -508,6 +508,22 @@ export default function MilestonesPage() {
             </ToggleGroup>
             <Button
               type="button"
+              variant="outline"
+              className="h-10 gap-2 rounded-lg border-indigo-200 bg-white px-3 shadow-sm"
+              onClick={() => csvFileRef.current?.click()}
+            >
+              <Upload className="h-4 w-4" aria-hidden />
+              Upload CSV
+            </Button>
+            <input
+              ref={csvFileRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleCsvUpload}
+            />
+            <Button
+              type="button"
               className={cn("h-10 rounded-lg shadow-sm", ACCENT.bg, "hover:bg-indigo-700")}
               onClick={openCreateMilestone}
             >
