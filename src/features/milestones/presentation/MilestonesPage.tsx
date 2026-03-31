@@ -134,6 +134,7 @@ export default function MilestonesPage() {
   const [driverFilter, setDriverFilter] = useState<string>("all");
   const [deptFilter, setDeptFilter] = useState<string>("all");
   const [pinned, setPinned] = useState(false);
+  const csvFileRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
   const [editOpen, setEditOpen] = useState(false);
