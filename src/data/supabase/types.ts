@@ -494,6 +494,38 @@ export type Database = {
           },
         ]
       }
+      milestone_updates: {
+        Row: {
+          author_name: string
+          created_at: string
+          id: string
+          message: string
+          milestone_id: string
+        }
+        Insert: {
+          author_name: string
+          created_at?: string
+          id: string
+          message: string
+          milestone_id: string
+        }
+        Update: {
+          author_name?: string
+          created_at?: string
+          id?: string
+          message?: string
+          milestone_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestone_updates_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       milestones: {
         Row: {
           completed_at: string | null

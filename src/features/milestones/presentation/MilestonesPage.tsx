@@ -28,12 +28,20 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-import type { DemoMilestone, DemoMilestoneStatus } from "./milestone-demo-data";
+import type { DemoMilestone, DemoMilestoneStatus, DemoTask } from "./milestone-demo-data";
 import { MilestoneEditDialog } from "./MilestoneEditDialog";
 import { useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/data/supabase/client";
 import Papa from "papaparse";
+import {
+  deleteMilestoneById,
+  fetchMilestoneUpdates,
+  insertMilestoneUpdate,
+  persistMilestone,
+  setChecklistItemCompleted,
+  updateMilestoneStatus,
+} from "../data/milestonePersistence";
 
 const ACCENT = {
   text: "text-[#3b5bfd]",
@@ -122,14 +130,6 @@ type PinnedView = {
   quarter: string;
   driverFilter: string;
   deptFilter: string;
-};
-
-type MilestoneUpdate = {
-  id: string;
-  milestoneId: string;
-  message: string;
-  createdAt: string;
-  author: string;
 };
 
 type DbMilestone = {
@@ -271,6 +271,7 @@ function normaliseQuarter(raw: string | undefined): DbMilestone["quarter"] {
 }
 
 export default function MilestonesPage() {
+  const queryClient = useQueryClient();
   const { data: dbMilestones = [], isLoading, refetch } = useQuery({
     queryKey: ["milestones"],
     queryFn: fetchMilestones,
@@ -283,8 +284,6 @@ export default function MilestonesPage() {
     queryFn: () => fetchTasks(milestoneIds),
     enabled: milestoneIds.length > 0,
   });
-
-  const [milestones, setMilestones] = useState<DemoMilestone[]>([]);
   const [searchParams] = useSearchParams();
   const [year, setYear] = useState(2026);
   const [quarter, setQuarter] = useState<string>("Q1");
@@ -336,11 +335,10 @@ export default function MilestonesPage() {
     return map;
   }, [dbTasks, checklistByTask]);
 
-  useEffect(() => {
-    setMilestones(
-      dbMilestones.map((m) => mapDbToDemo(m, tasksByMilestone[m.id] ?? [])),
-    );
-  }, [dbMilestones, tasksByMilestone]);
+  const milestones = useMemo(
+    () => dbMilestones.map((m) => mapDbToDemo(m, tasksByMilestone[m.id] ?? [])),
+    [dbMilestones, tasksByMilestone],
+  );
 
   const drivers = useMemo(() => {
     const s = new Set(milestones.map((m) => m.driver));
@@ -378,13 +376,18 @@ export default function MilestonesPage() {
     [filtered, selectedId],
   );
 
+  const { data: milestoneUpdates = [] } = useQuery({
+    queryKey: ["milestone-updates", selectedId],
+    queryFn: () => fetchMilestoneUpdates(selectedId!),
+    enabled: selectedId != null,
+  });
+
   const editMilestoneLive =
     editMode === "edit" && editTarget
       ? (milestones.find((m) => m.id === editTarget.id) ?? editTarget)
       : null;
 
   const [checklistState, setChecklistState] = useState<Record<string, boolean>>({});
-  const [updatesByMilestone, setUpdatesByMilestone] = useState<Record<string, MilestoneUpdate[]>>({});
   const [newUpdateMessage, setNewUpdateMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -393,10 +396,27 @@ export default function MilestonesPage() {
     setChecklistState({});
   }, [selectedId]);
 
-  const toggleChecklist = useCallback((taskId: string, itemId: string, completed: boolean) => {
-    const key = `${taskId}:${itemId}`;
-    setChecklistState((prev) => ({ ...prev, [key]: !completed }));
-  }, []);
+  const toggleChecklist = useCallback(
+    async (taskId: string, itemId: string, completed: boolean) => {
+      const key = `${taskId}:${itemId}`;
+      const next = !completed;
+      setChecklistState((prev) => ({ ...prev, [key]: next }));
+      try {
+        await setChecklistItemCompleted(itemId, next);
+        await queryClient.invalidateQueries({ queryKey: ["milestone-task-checklist"] });
+        setChecklistState((prev) => {
+          const copy = { ...prev };
+          delete copy[key];
+          return copy;
+        });
+      } catch (e) {
+        console.error(e);
+        setChecklistState((prev) => ({ ...prev, [key]: completed }));
+        toast.error("Could not update checklist.");
+      }
+    },
+    [queryClient],
+  );
 
   const isItemDone = useCallback(
     (taskId: string, itemId: string, defaultCompleted: boolean) => {
@@ -495,24 +515,27 @@ export default function MilestonesPage() {
     });
   };
 
-  const currentUpdates = selectedId ? updatesByMilestone[selectedId] ?? [] : [];
-
-  const handleAddUpdate = () => {
+  const handleAddUpdate = async () => {
     if (!selectedId) return;
     const trimmed = newUpdateMessage.trim();
     if (!trimmed) return;
-    const entry: MilestoneUpdate = {
-      id: crypto.randomUUID(),
-      milestoneId: selectedId,
-      author: "You",
-      message: trimmed,
-      createdAt: new Date().toISOString(),
-    };
-    setUpdatesByMilestone((prev) => ({
-      ...prev,
-      [selectedId]: [...(prev[selectedId] ?? []), entry],
-    }));
-    setNewUpdateMessage("");
+    const { data: auth } = await supabase.auth.getUser();
+    const authorName =
+      (auth.user?.user_metadata?.full_name as string | undefined)?.trim() ||
+      auth.user?.email?.trim() ||
+      "You";
+    try {
+      await insertMilestoneUpdate({
+        milestoneId: selectedId,
+        message: trimmed,
+        authorName,
+      });
+      setNewUpdateMessage("");
+      await queryClient.invalidateQueries({ queryKey: ["milestone-updates", selectedId] });
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not post update.");
+    }
   };
 
   const handleUploadCsvClick = () => {
@@ -614,20 +637,26 @@ export default function MilestonesPage() {
     setEditOpen(true);
   };
 
-  const handleSaveMilestone = (m: DemoMilestone) => {
-    setMilestones((prev) => {
-      const i = prev.findIndex((x) => x.id === m.id);
-      if (i === -1) return [...prev, m];
-      const next = [...prev];
-      next[i] = m;
-      return next;
-    });
+  const handleSaveMilestone = async (m: DemoMilestone) => {
+    const { data: auth, error: authError } = await supabase.auth.getUser();
+    if (authError || !auth.user) {
+      toast.error("You must be signed in to save milestones.");
+      throw new Error("Not authenticated");
+    }
+    await persistMilestone(m, editMode === "create" ? "create" : "edit", auth.user.id);
     setSelectedId(m.id);
+    await queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    await queryClient.invalidateQueries({ queryKey: ["milestone-tasks"] });
+    await queryClient.invalidateQueries({ queryKey: ["milestone-task-checklist"] });
   };
 
-  const handleDeleteMilestone = (id: string) => {
-    setMilestones((prev) => prev.filter((m) => m.id !== id));
+  const handleDeleteMilestone = async (id: string) => {
+    await deleteMilestoneById(id);
     setSelectedId((cur) => (cur === id ? null : cur));
+    await queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    await queryClient.invalidateQueries({ queryKey: ["milestone-tasks"] });
+    await queryClient.invalidateQueries({ queryKey: ["milestone-task-checklist"] });
+    await queryClient.invalidateQueries({ queryKey: ["milestone-updates"] });
   };
 
   const handleShareView = () => {
@@ -912,18 +941,15 @@ export default function MilestonesPage() {
                   <div className="mt-5 flex flex-wrap items-center gap-3" data-stop-edit>
                     <Select
                       value={selected.status}
-                      onValueChange={(v) => {
+                      onValueChange={async (v) => {
                         const nextStatus = v as DemoMilestoneStatus;
-                        setMilestones((prev) =>
-                          prev.map((m) =>
-                            m.id === selected.id
-                              ? {
-                                  ...m,
-                                  status: nextStatus,
-                                }
-                              : m,
-                          ),
-                        );
+                        try {
+                          await updateMilestoneStatus(selected.id, nextStatus);
+                          await queryClient.invalidateQueries({ queryKey: ["milestones"] });
+                        } catch (e) {
+                          console.error(e);
+                          toast.error("Could not update status.");
+                        }
                       }}
                     >
                       <SelectTrigger className="inline-flex h-8 w-auto items-center gap-1 rounded-full bg-transparent px-0 text-xs font-medium text-[#3b5bfd] shadow-none ring-0 border-0 focus:ring-0 focus:ring-offset-0">
@@ -1053,12 +1079,12 @@ export default function MilestonesPage() {
                     </div>
 
                     <div className="space-y-2.5">
-                      {currentUpdates.length === 0 ? (
+                      {milestoneUpdates.length === 0 ? (
                         <p className="text-xs text-muted-foreground">
                           No updates yet. Share the latest status or anything that might be blocking you.
                         </p>
                       ) : (
-                        currentUpdates
+                        milestoneUpdates
                           .slice()
                           .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
                           .map((u) => (

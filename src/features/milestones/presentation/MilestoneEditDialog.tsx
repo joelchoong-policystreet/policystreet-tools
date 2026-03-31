@@ -68,8 +68,8 @@ type Props = {
   milestone: DemoMilestone | null;
   filterYear: number;
   filterQuarter: string;
-  onSave: (milestone: DemoMilestone) => void;
-  onDelete?: (id: string) => void;
+  onSave: (milestone: DemoMilestone) => void | Promise<void>;
+  onDelete?: (id: string) => void | Promise<void>;
 };
 
 export function MilestoneEditDialog({
@@ -98,23 +98,33 @@ export function MilestoneEditDialog({
     setDraft((d) => ({ ...d, ...patch }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!draft.title.trim()) {
       toast.error("Title is required.");
       return;
     }
     const id = milestone?.id ?? newId();
-    onSave(draftToDemo(draft, id));
-    toast.success(mode === "create" ? "Milestone created." : "Milestone saved.");
-    onOpenChange(false);
+    try {
+      await Promise.resolve(onSave(draftToDemo(draft, id)));
+      toast.success(mode === "create" ? "Milestone created." : "Milestone saved.");
+      onOpenChange(false);
+    } catch (e) {
+      console.error(e);
+      toast.error(mode === "create" ? "Could not create milestone." : "Could not save milestone.");
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (milestone && onDelete) {
-      onDelete(milestone.id);
-      toast.success("Milestone deleted.");
-      setDeleteOpen(false);
-      onOpenChange(false);
+      try {
+        await Promise.resolve(onDelete(milestone.id));
+        toast.success("Milestone deleted.");
+        setDeleteOpen(false);
+        onOpenChange(false);
+      } catch (e) {
+        console.error(e);
+        toast.error("Could not delete milestone.");
+      }
     }
   };
 
