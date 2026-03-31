@@ -653,13 +653,13 @@ export default function MilestonesPage() {
     setEditOpen(true);
   };
 
-  const handleSaveMilestone = async (m: DemoMilestone) => {
+  const handleSaveMilestone = async (m: DemoMilestone, saveMode: "create" | "edit") => {
     const { data: auth, error: authError } = await supabase.auth.getUser();
     if (authError || !auth.user) {
       toast.error("You must be signed in to save milestones.");
       throw new Error("Not authenticated");
     }
-    await persistMilestone(m, editMode === "create" ? "create" : "edit", auth.user.id);
+    await persistMilestone(m, saveMode, auth.user.id);
     setSelectedId(m.id);
     await queryClient.invalidateQueries({ queryKey: ["milestones"] });
     await queryClient.invalidateQueries({ queryKey: ["milestone-tags"] });

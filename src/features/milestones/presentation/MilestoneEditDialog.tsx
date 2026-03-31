@@ -68,7 +68,8 @@ type Props = {
   milestone: DemoMilestone | null;
   filterYear: number;
   filterQuarter: string;
-  onSave: (milestone: DemoMilestone) => void | Promise<void>;
+  /** `mode` is the dialog mode at save time — use this (not parent state) for create vs update. */
+  onSave: (milestone: DemoMilestone, mode: "create" | "edit") => void | Promise<void>;
   onDelete?: (id: string) => void | Promise<void>;
 };
 
@@ -105,7 +106,7 @@ export function MilestoneEditDialog({
     }
     const id = milestone?.id ?? newId();
     try {
-      await Promise.resolve(onSave(draftToDemo(draft, id)));
+      await Promise.resolve(onSave(draftToDemo(draft, id), mode));
       toast.success(mode === "create" ? "Milestone created." : "Milestone saved.");
       onOpenChange(false);
     } catch (e) {

@@ -95,8 +95,13 @@ export async function persistMilestone(
     });
     if (error) throw error;
   } else {
-    const { error } = await supabase.from("milestones").update(base).eq("id", m.id);
+    const { data, error } = await supabase.from("milestones").update(base).eq("id", m.id).select("id");
     if (error) throw error;
+    if (!data?.length) {
+      throw new Error(
+        "No milestone row was updated. It may not exist, or create was mistaken for edit.",
+      );
+    }
   }
 
   await syncMilestoneTags(m.id, m.tags);
