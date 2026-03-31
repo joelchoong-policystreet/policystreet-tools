@@ -17,7 +17,6 @@ export type Database = {
       audit_logs: {
         Row: {
           change: string
-          details: Record<string, unknown> | null
           event_type: string
           id: string
           item_affected: string
@@ -26,7 +25,6 @@ export type Database = {
         }
         Insert: {
           change: string
-          details?: Record<string, unknown> | null
           event_type: string
           id?: string
           item_affected: string
@@ -35,7 +33,6 @@ export type Database = {
         }
         Update: {
           change?: string
-          details?: Record<string, unknown> | null
           event_type?: string
           id?: string
           item_affected?: string
@@ -91,6 +88,44 @@ export type Database = {
         }
         Relationships: []
       }
+      imotorbike_billing_field_history: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          field_name: string
+          id: string
+          new_value: string | null
+          normalised_id: string
+          old_value: string | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          field_name: string
+          id?: string
+          new_value?: string | null
+          normalised_id: string
+          old_value?: string | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          field_name?: string
+          id?: string
+          new_value?: string | null
+          normalised_id?: string
+          old_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imotorbike_billing_field_history_normalised_id_fkey"
+            columns: ["normalised_id"]
+            isOneToOne: false
+            referencedRelation: "imotorbike_billing_normalised"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       imotorbike_billing_normalised: {
         Row: {
           billing_id: string
@@ -102,7 +137,9 @@ export type Database = {
           gross_premium: string | null
           ic: string | null
           id: string
+          insurer: string
           issue_date: string
+          issue_year: number | null
           ncd: string | null
           premium: string | null
           project: string | null
@@ -128,7 +165,9 @@ export type Database = {
           gross_premium?: string | null
           ic?: string | null
           id?: string
+          insurer: string
           issue_date: string
+          issue_year?: number | null
           ncd?: string | null
           premium?: string | null
           project?: string | null
@@ -154,7 +193,9 @@ export type Database = {
           gross_premium?: string | null
           ic?: string | null
           id?: string
+          insurer?: string
           issue_date?: string
+          issue_year?: number | null
           ncd?: string | null
           premium?: string | null
           project?: string | null
@@ -383,12 +424,204 @@ export type Database = {
           },
         ]
       }
+      milestone_tags: {
+        Row: {
+          id: string
+          milestone_id: string
+          tag: string
+        }
+        Insert: {
+          id: string
+          milestone_id: string
+          tag: string
+        }
+        Update: {
+          id?: string
+          milestone_id?: string
+          tag?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestone_tags_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      milestone_task_checklist_items: {
+        Row: {
+          completed: boolean
+          completed_on: string | null
+          created_at: string
+          id: string
+          label: string
+          position: number
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          completed?: boolean
+          completed_on?: string | null
+          created_at?: string
+          id: string
+          label: string
+          position?: number
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          completed?: boolean
+          completed_on?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          position?: number
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestone_task_checklist_items_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "milestone_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      milestone_tasks: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          due_label: string | null
+          id: string
+          milestone_id: string
+          position: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          due_label?: string | null
+          id: string
+          milestone_id: string
+          position?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          due_label?: string | null
+          id?: string
+          milestone_id?: string
+          position?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestone_tasks_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      milestone_updates: {
+        Row: {
+          author_name: string
+          created_at: string
+          id: string
+          message: string
+          milestone_id: string
+        }
+        Insert: {
+          author_name: string
+          created_at?: string
+          id: string
+          message: string
+          milestone_id: string
+        }
+        Update: {
+          author_name?: string
+          created_at?: string
+          id?: string
+          message?: string
+          milestone_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestone_updates_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      milestones: {
+        Row: {
+          created_at: string
+          department: string
+          description: string
+          driver: string
+          due_date: string | null
+          external_url: string | null
+          id: string
+          list_preview: string
+          quarter: string
+          status: string
+          tier: string
+          title: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          department: string
+          description: string
+          driver: string
+          due_date?: string | null
+          external_url?: string | null
+          id: string
+          list_preview: string
+          quarter: string
+          status: string
+          tier: string
+          title: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          department?: string
+          description?: string
+          driver?: string
+          due_date?: string | null
+          external_url?: string | null
+          id?: string
+          list_preview?: string
+          quarter?: string
+          status?: string
+          tier?: string
+          title?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
       ocr_data_table: {
         Row: {
           company_id: string
           created_at: string
           created_timestamp: string | null
           date_issue: string | null
+          date_issue_clean: string | null
           file_name: string | null
           formatted_timestamp: string | null
           gross_premium: string | null
@@ -417,6 +650,7 @@ export type Database = {
           created_at?: string
           created_timestamp?: string | null
           date_issue?: string | null
+          date_issue_clean?: string | null
           file_name?: string | null
           formatted_timestamp?: string | null
           gross_premium?: string | null
@@ -445,6 +679,7 @@ export type Database = {
           created_at?: string
           created_timestamp?: string | null
           date_issue?: string | null
+          date_issue_clean?: string | null
           file_name?: string | null
           formatted_timestamp?: string | null
           gross_premium?: string | null
