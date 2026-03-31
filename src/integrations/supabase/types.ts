@@ -566,6 +566,7 @@ export type Database = {
       }
       milestones: {
         Row: {
+          completed_at: string | null
           created_at: string
           department: string
           description: string
@@ -582,6 +583,7 @@ export type Database = {
           year: number
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
           department: string
           description: string
@@ -598,6 +600,7 @@ export type Database = {
           year: number
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
           department?: string
           description?: string
