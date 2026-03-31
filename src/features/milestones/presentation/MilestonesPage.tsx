@@ -104,6 +104,15 @@ function formatUpdateTimestamp(iso: string) {
   }
 }
 
+function formatTaskDueLabel(iso: string | null): string {
+  if (!iso?.trim()) return "—";
+  try {
+    return format(parseISO(iso), "MMM d, yyyy");
+  } catch {
+    return "—";
+  }
+}
+
 type ViewMode = "list" | "roadmap" | "table";
 
 const PIN_STORAGE_KEY = "milestones:pinned-view";
@@ -140,8 +149,26 @@ type DbMilestone = {
   link: string | null;
 };
 
+type DbTask = {
+  id: string;
+  milestone_id: string;
+  title: string;
+  due_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+
+type DbChecklistItem = {
+  id: string;
+  task_id: string;
+  label: string;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+};
+
 async function fetchMilestones(): Promise<DbMilestone[]> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("milestones")
     .select(
       [
@@ -169,7 +196,29 @@ async function fetchMilestones(): Promise<DbMilestone[]> {
   return (data ?? []) as DbMilestone[];
 }
 
-function mapDbToDemo(m: DbMilestone): DemoMilestone {
+async function fetchTasks(milestoneIds: string[]): Promise<DbTask[]> {
+  if (milestoneIds.length === 0) return [];
+  const { data, error } = await (supabase as any)
+    .from("milestone_tasks")
+    .select("id,milestone_id,title,due_date,completed_at,created_at")
+    .in("milestone_id", milestoneIds);
+
+  if (error) throw error;
+  return (data ?? []) as DbTask[];
+}
+
+async function fetchChecklist(taskIds: string[]): Promise<DbChecklistItem[]> {
+  if (taskIds.length === 0) return [];
+  const { data, error } = await (supabase as any)
+    .from("milestone_task_checklist_items")
+    .select("id,task_id,label,completed,completed_at,created_at")
+    .in("task_id", taskIds);
+
+  if (error) throw error;
+  return (data ?? []) as DbChecklistItem[];
+}
+
+function mapDbToDemo(m: DbMilestone, tasks: DemoTask[]): DemoMilestone {
   const desc = m.description ?? "";
   const preview =
     desc.length <= 140 ? (desc || "No description") : `${desc.slice(0, 137)}…`;
@@ -188,7 +237,7 @@ function mapDbToDemo(m: DbMilestone): DemoMilestone {
     department: m.department,
     tags: m.tags ?? [],
     externalUrl: m.link ?? undefined,
-    tasks: [],
+    tasks,
   };
 }
 
@@ -227,6 +276,14 @@ export default function MilestonesPage() {
     queryFn: fetchMilestones,
   });
 
+  const milestoneIds = useMemo(() => dbMilestones.map((m) => m.id), [dbMilestones]);
+
+  const { data: dbTasks = [] } = useQuery({
+    queryKey: ["milestone-tasks", milestoneIds],
+    queryFn: () => fetchTasks(milestoneIds),
+    enabled: milestoneIds.length > 0,
+  });
+
   const [milestones, setMilestones] = useState<DemoMilestone[]>([]);
   const [searchParams] = useSearchParams();
   const [year, setYear] = useState(2026);
@@ -240,9 +297,50 @@ export default function MilestonesPage() {
   const [editMode, setEditMode] = useState<"create" | "edit">("edit");
   const [editTarget, setEditTarget] = useState<DemoMilestone | null>(null);
 
+  const taskIds = useMemo(() => dbTasks.map((t) => t.id), [dbTasks]);
+
+  const { data: dbChecklist = [] } = useQuery({
+    queryKey: ["milestone-task-checklist", taskIds],
+    queryFn: () => fetchChecklist(taskIds),
+    enabled: taskIds.length > 0,
+  });
+
+  const checklistByTask = useMemo(() => {
+    const map: Record<string, { id: string; label: string; completed: boolean; completedOn?: string }[]> = {};
+    for (const c of dbChecklist) {
+      const list = map[c.task_id] ?? [];
+      list.push({
+        id: c.id,
+        label: c.label,
+        completed: c.completed,
+        completedOn: c.completed_at ?? undefined,
+      });
+      map[c.task_id] = list;
+    }
+    return map;
+  }, [dbChecklist]);
+
+  const tasksByMilestone = useMemo(() => {
+    const map: Record<string, DemoTask[]> = {};
+    for (const t of dbTasks) {
+      const list = map[t.milestone_id] ?? [];
+      list.push({
+        id: t.id,
+        title: t.title,
+        dueDate: t.due_date ?? "",
+        dueLabel: formatTaskDueLabel(t.due_date),
+        checklist: checklistByTask[t.id] ?? [],
+      });
+      map[t.milestone_id] = list;
+    }
+    return map;
+  }, [dbTasks, checklistByTask]);
+
   useEffect(() => {
-    setMilestones(dbMilestones.map(mapDbToDemo));
-  }, [dbMilestones]);
+    setMilestones(
+      dbMilestones.map((m) => mapDbToDemo(m, tasksByMilestone[m.id] ?? [])),
+    );
+  }, [dbMilestones, tasksByMilestone]);
 
   const drivers = useMemo(() => {
     const s = new Set(milestones.map((m) => m.driver));
