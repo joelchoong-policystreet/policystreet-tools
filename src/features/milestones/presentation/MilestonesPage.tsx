@@ -341,7 +341,97 @@ export default function MilestonesPage() {
     setSelectedId((cur) => (cur === id ? null : cur));
   };
 
-  const handleShareView = () => {
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const rows = results.data;
+        if (rows.length === 0) {
+          toast.error("CSV is empty.");
+          return;
+        }
+
+        let insertedCount = 0;
+        const newMilestones: DemoMilestone[] = [];
+
+        for (const row of rows) {
+          const id = crypto.randomUUID();
+          const desc = (row.description || "").trim();
+          const preview = desc.length <= 140 ? desc || "No description" : `${desc.slice(0, 137)}…`;
+          const tags = (row.tags || "")
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean);
+
+          const milestoneInsert = {
+            id,
+            title: (row.title || "").trim() || "Untitled milestone",
+            description: desc,
+            list_preview: preview,
+            status: (row.status || "not_started").trim(),
+            tier: (row.tier || "major").trim(),
+            year: parseInt(row.year, 10) || new Date().getFullYear(),
+            quarter: (row.quarter || "Q1").trim(),
+            due_date: row.due_date?.trim() || null,
+            completed_at: row.completed_at?.trim() || null,
+            driver: (row.driver || "").trim() || "—",
+            department: (row.department || "").trim() || "—",
+            external_url: (row.link || "").trim() || null,
+          };
+
+          const { error } = await supabase.from("milestones").insert(milestoneInsert);
+          if (error) {
+            console.error("Failed to insert milestone:", error);
+            continue;
+          }
+
+          if (tags.length > 0) {
+            const tagInserts = tags.map((tag) => ({
+              id: crypto.randomUUID(),
+              milestone_id: id,
+              tag,
+            }));
+            await supabase.from("milestone_tags").insert(tagInserts);
+          }
+
+          newMilestones.push({
+            id,
+            title: milestoneInsert.title,
+            description: desc,
+            listPreview: preview,
+            tier: milestoneInsert.tier as "major" | "minor",
+            quarter: milestoneInsert.quarter as DemoMilestone["quarter"],
+            year: milestoneInsert.year,
+            status: milestoneInsert.status as DemoMilestoneStatus,
+            dueDate: milestoneInsert.due_date || "",
+            driver: milestoneInsert.driver,
+            department: milestoneInsert.department,
+            tags,
+            externalUrl: milestoneInsert.external_url || undefined,
+            tasks: [],
+          });
+          insertedCount++;
+        }
+
+        if (insertedCount > 0) {
+          setMilestones((prev) => [...prev, ...newMilestones]);
+          toast.success(`${insertedCount} milestone(s) uploaded successfully.`);
+        } else {
+          toast.error("No milestones could be inserted.");
+        }
+      },
+      error: (err) => {
+        toast.error(`CSV parse error: ${err.message}`);
+      },
+    });
+  };
+
+
     const params = new URLSearchParams({
       y: String(year),
       q: quarter,
