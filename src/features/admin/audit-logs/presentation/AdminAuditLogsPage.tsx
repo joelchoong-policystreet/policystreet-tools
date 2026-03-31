@@ -162,7 +162,7 @@ export default function AdminAuditLogsPage() {
         eventType: d.event_type,
         change: d.change,
         itemAffected: d.item_affected,
-        details: (d.details as AuditDetails) ?? null,
+        details: null,
       }));
     },
   });
