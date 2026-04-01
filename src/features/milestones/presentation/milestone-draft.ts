@@ -1,11 +1,11 @@
 import { format, parseISO } from "date-fns";
 
 import type {
-  DemoChecklistItem,
-  DemoMilestone,
-  DemoMilestoneStatus,
-  DemoTask,
-} from "./milestone-demo-data";
+  Milestone,
+  MilestoneChecklistItem,
+  MilestoneStatus,
+  MilestoneTask,
+} from "./milestoneTypes";
 
 export type Quarter = "Q1" | "Q2" | "Q3" | "Q4";
 
@@ -26,7 +26,7 @@ export type DraftTask = {
 export type MilestoneDraft = {
   title: string;
   description: string;
-  status: DemoMilestoneStatus;
+  status: MilestoneStatus;
   tier: "major" | "minor";
   dueDate: string;
   year: number;
@@ -52,7 +52,7 @@ function taskDueLabel(iso: string) {
   }
 }
 
-export function demoToDraft(m: DemoMilestone): MilestoneDraft {
+export function milestoneToDraft(m: Milestone): MilestoneDraft {
   return {
     title: m.title,
     description: m.description,
@@ -79,7 +79,7 @@ export function demoToDraft(m: DemoMilestone): MilestoneDraft {
   };
 }
 
-function draftChecklistToDemo(items: DraftChecklistItem[]): DemoChecklistItem[] {
+function draftChecklistToMilestone(items: DraftChecklistItem[]): MilestoneChecklistItem[] {
   return items.map((c) => ({
     id: c.id,
     label: c.label,
@@ -88,17 +88,17 @@ function draftChecklistToDemo(items: DraftChecklistItem[]): DemoChecklistItem[] 
   }));
 }
 
-function draftTasksToDemo(tasks: DraftTask[]): DemoTask[] {
+function draftTasksToMilestone(tasks: DraftTask[]): MilestoneTask[] {
   return tasks.map((t) => ({
     id: t.id,
     title: t.title,
     dueDate: t.dueDate,
     dueLabel: taskDueLabel(t.dueDate),
-    checklist: draftChecklistToDemo(t.checklist),
+    checklist: draftChecklistToMilestone(t.checklist),
   }));
 }
 
-export function draftToDemo(d: MilestoneDraft, id: string): DemoMilestone {
+export function draftToMilestone(d: MilestoneDraft, id: string): Milestone {
   const desc = d.description.trim();
   const preview =
     desc.length <= 140 ? desc || "No description" : `${desc.slice(0, 137)}…`;
@@ -108,7 +108,7 @@ export function draftToDemo(d: MilestoneDraft, id: string): DemoMilestone {
     description: desc,
     listPreview: preview,
     tier: d.tier,
-    quarter: (d.quarter || "Q1") as DemoMilestone["quarter"],
+    quarter: (d.quarter || "Q1") as Milestone["quarter"],
     year: d.year,
     status: d.status,
     dueDate: d.dueDate,
@@ -119,7 +119,7 @@ export function draftToDemo(d: MilestoneDraft, id: string): DemoMilestone {
       .map((t) => t.trim())
       .filter(Boolean),
     externalUrl: d.externalUrl.trim() || undefined,
-    tasks: draftTasksToDemo(d.tasks),
+    tasks: draftTasksToMilestone(d.tasks),
   };
 }
 

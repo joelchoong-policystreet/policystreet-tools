@@ -36,8 +36,9 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-import type { DemoMilestone, DemoMilestoneStatus, DemoTask } from "./milestone-demo-data";
+import type { Milestone, MilestoneStatus, MilestoneTask } from "./milestoneTypes";
 import { MilestoneEditDialog } from "./MilestoneEditDialog";
+import { MilestoneRoadmapGantt } from "./MilestoneRoadmapGantt";
 import { useParams, useSearchParams, Navigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/data/supabase/client";
@@ -73,8 +74,8 @@ function formatShortDate(iso: string) {
   }
 }
 
-function statusLabel(s: DemoMilestoneStatus) {
-  const map: Record<DemoMilestoneStatus, string> = {
+function statusLabel(s: MilestoneStatus) {
+  const map: Record<MilestoneStatus, string> = {
     not_started: "Not started",
     in_progress: "In progress",
     at_risk: "At risk",
@@ -86,7 +87,7 @@ function statusLabel(s: DemoMilestoneStatus) {
   return map[s];
 }
 
-function StatusBadge({ status }: { status: DemoMilestoneStatus }) {
+function StatusBadge({ status }: { status: MilestoneStatus }) {
   const base =
     "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium capitalize";
   if (status === "in_progress") {
@@ -151,7 +152,7 @@ type DbMilestone = {
   board_id: string;
   title: string;
   description: string;
-  status: DemoMilestoneStatus;
+  status: MilestoneStatus;
   tier: "major" | "minor";
   year: number;
   quarter: "Q1" | "Q2" | "Q3" | "Q4";
@@ -161,6 +162,7 @@ type DbMilestone = {
   department: string;
   created_at: string;
   link: string | null;
+  completed_at: string | null;
 };
 
 type DbTask = {
@@ -201,6 +203,7 @@ async function fetchMilestones(boardId: string): Promise<DbMilestone[]> {
         "department",
         "created_at",
         "link",
+        "completed_at",
       ].join(","),
     )
     .eq("board_id", boardId)
@@ -240,7 +243,7 @@ async function fetchChecklist(taskIds: string[]): Promise<DbChecklistItem[]> {
   return (data ?? []) as DbChecklistItem[];
 }
 
-function mapDbToDemo(m: DbMilestone, tasks: DemoTask[]): DemoMilestone {
+function mapDbToMilestone(m: DbMilestone, tasks: MilestoneTask[]): Milestone {
   const desc = m.description ?? "";
   const preview =
     desc.length <= 140 ? (desc || "No description") : `${desc.slice(0, 137)}…`;
@@ -259,13 +262,14 @@ function mapDbToDemo(m: DbMilestone, tasks: DemoTask[]): DemoMilestone {
     department: m.department,
     tags: m.tags ?? [],
     externalUrl: m.link ?? undefined,
+    completedAt: m.completed_at ?? undefined,
     tasks,
   };
 }
 
-function normaliseStatus(raw: string | undefined): DemoMilestoneStatus {
+function normaliseStatus(raw: string | undefined): MilestoneStatus {
   const base = (raw ?? "").toLowerCase().replace(/\s+/g, "_");
-  const allowed: DemoMilestoneStatus[] = [
+  const allowed: MilestoneStatus[] = [
     "not_started",
     "in_progress",
     "at_risk",
@@ -274,7 +278,7 @@ function normaliseStatus(raw: string | undefined): DemoMilestoneStatus {
     "merged",
     "completed",
   ];
-  if (allowed.includes(base as DemoMilestoneStatus)) return base as DemoMilestoneStatus;
+  if (allowed.includes(base as MilestoneStatus)) return base as MilestoneStatus;
   if (base === "inprogress") return "in_progress";
   if (base === "notstarted") return "not_started";
   return "not_started";
@@ -329,7 +333,7 @@ export default function MilestonesPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<"create" | "edit">("edit");
-  const [editTarget, setEditTarget] = useState<DemoMilestone | null>(null);
+  const [editTarget, setEditTarget] = useState<Milestone | null>(null);
 
   const taskIds = useMemo(() => dbTasks.map((t) => t.id), [dbTasks]);
 
@@ -369,7 +373,7 @@ export default function MilestonesPage() {
       if (ca !== cb) return ca.localeCompare(cb);
       return a.id.localeCompare(b.id);
     });
-    const map: Record<string, DemoTask[]> = {};
+    const map: Record<string, MilestoneTask[]> = {};
     for (const t of sorted) {
       const list = map[t.milestone_id] ?? [];
       list.push({
@@ -377,6 +381,7 @@ export default function MilestonesPage() {
         title: t.title,
         dueDate: t.due_date ?? "",
         dueLabel: formatTaskDueLabel(t.due_date),
+        completedAt: t.completed_at ?? undefined,
         checklist: checklistByTask[t.id] ?? [],
       });
       map[t.milestone_id] = list;
@@ -385,7 +390,7 @@ export default function MilestonesPage() {
   }, [dbTasks, checklistByTask]);
 
   const milestones = useMemo(
-    () => dbMilestones.map((m) => mapDbToDemo(m, tasksByMilestone[m.id] ?? [])),
+    () => dbMilestones.map((m) => mapDbToMilestone(m, tasksByMilestone[m.id] ?? [])),
     [dbMilestones, tasksByMilestone],
   );
 
@@ -558,7 +563,7 @@ export default function MilestonesPage() {
 
   /** Checklist rows to render for list/table based on filter (optimistic state aware). */
   const filterTaskChecklistForView = useCallback(
-    (task: DemoTask) => {
+    (task: MilestoneTask) => {
       const items = task.checklist;
       if (checklistStatusFilter === "hidden") return [];
       if (checklistStatusFilter === "open_only") {
@@ -571,7 +576,7 @@ export default function MilestonesPage() {
 
   /** Table view: toggle all checklist items for a task (shortcut from subtask row). */
   const toggleChecklistBulkForTask = useCallback(
-    async (task: DemoTask) => {
+    async (task: MilestoneTask) => {
       if (task.checklist.length === 0) return;
       const allDone = task.checklist.every((item) =>
         isItemDone(task.id, item.id, item.completed),
@@ -826,14 +831,14 @@ export default function MilestonesPage() {
     setEditOpen(true);
   };
 
-  const openEditMilestone = (m: DemoMilestone) => {
+  const openEditMilestone = (m: Milestone) => {
     setSelectedId(m.id);
     setEditMode("edit");
     setEditTarget(m);
     setEditOpen(true);
   };
 
-  const handleSaveMilestone = async (m: DemoMilestone, saveMode: "create" | "edit") => {
+  const handleSaveMilestone = async (m: Milestone, saveMode: "create" | "edit") => {
     const { data: auth, error: authError } = await supabase.auth.getUser();
     if (authError || !auth.user) {
       toast.error("You must be signed in to save milestones.");
@@ -886,7 +891,7 @@ export default function MilestonesPage() {
   return (
     <div className="min-h-screen bg-[hsl(250_20%_98%)]">
       <main
-        className="mx-auto max-w-[1400px] px-4 py-8 md:px-6"
+        className="mx-auto min-w-0 w-full max-w-[1400px] px-4 py-8 md:px-6"
         aria-busy={milestonesBoardLoading}
       >
         {/* Header */}
@@ -1238,7 +1243,7 @@ export default function MilestonesPage() {
                     <Select
                       value={selected.status}
                       onValueChange={async (v) => {
-                        const nextStatus = v as DemoMilestoneStatus;
+                        const nextStatus = v as MilestoneStatus;
                         try {
                           await updateMilestoneStatus(selected.id, nextStatus);
                           await queryClient.invalidateQueries({ queryKey: ["milestones", boardId] });
@@ -1465,8 +1470,16 @@ export default function MilestonesPage() {
         )}
 
         {viewMode === "roadmap" && (
-          <div className="mt-4 rounded-2xl border border-dashed border-border bg-white/70 p-8 text-center text-sm text-muted-foreground">
-            Roadmap view will visualise milestones on a timeline grouped by quarter.
+          <div className="mt-4 min-w-0 w-full max-w-full">
+            <MilestoneRoadmapGantt
+              milestones={filtered}
+              onMilestoneClick={openEditMilestone}
+              filterTaskChecklistForView={filterTaskChecklistForView}
+              isItemDone={isItemDone}
+              onToggleChecklistItem={(taskId, itemId, completed) => {
+                void toggleChecklist(taskId, itemId, completed);
+              }}
+            />
           </div>
         )}
 
@@ -1847,7 +1860,7 @@ function MilestoneListCard({
   selected,
   onSelect,
 }: {
-  milestone: DemoMilestone;
+  milestone: Milestone;
   selected: boolean;
   onSelect: () => void;
 }) {

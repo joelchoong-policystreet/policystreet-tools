@@ -1,6 +1,6 @@
 import { supabase } from "@/data/supabase/client";
 
-import type { DemoMilestone, DemoMilestoneStatus } from "../presentation/milestone-demo-data";
+import type { Milestone, MilestoneStatus } from "../presentation/milestoneTypes";
 
 function dueOrNull(iso: string): string | null {
   const t = iso?.trim();
@@ -25,7 +25,7 @@ async function existingChecklistIdsForTask(taskId: string): Promise<Set<string>>
   return new Set((data ?? []).map((r) => r.id));
 }
 
-function milestoneRowBase(m: DemoMilestone) {
+function milestoneRowBase(m: Milestone) {
   const completed_at = m.status === "completed" ? new Date().toISOString() : null;
   return {
     title: m.title,
@@ -44,7 +44,7 @@ function milestoneRowBase(m: DemoMilestone) {
 }
 
 export async function persistMilestone(
-  m: DemoMilestone,
+  m: Milestone,
   mode: "create" | "edit",
   userId: string,
   boardId: string,
@@ -172,7 +172,7 @@ export async function deleteMilestoneById(milestoneId: string): Promise<void> {
 
 export async function updateMilestoneStatus(
   id: string,
-  status: DemoMilestoneStatus,
+  status: MilestoneStatus,
 ): Promise<void> {
   const completed_at = status === "completed" ? new Date().toISOString() : null;
   const { error } = await supabase.from("milestones").update({ status, completed_at }).eq("id", id);

@@ -35,11 +35,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import type { DemoMilestone, DemoMilestoneStatus } from "./milestone-demo-data";
+import type { Milestone, MilestoneStatus } from "./milestoneTypes";
 import {
-  demoToDraft,
-  draftToDemo,
+  draftToMilestone,
   emptyDraft,
+  milestoneToDraft,
   newId,
   type MilestoneDraft,
   type Quarter,
@@ -50,7 +50,7 @@ const SOFT_FIELD =
   "border-0 bg-[hsl(250_26%_96%)] shadow-none ring-1 ring-border/45 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500/25";
 const SOFT_LABEL = "text-xs font-medium text-muted-foreground";
 
-const STATUS_OPTIONS: { value: DemoMilestoneStatus; label: string }[] = [
+const STATUS_OPTIONS: { value: MilestoneStatus; label: string }[] = [
   { value: "not_started", label: "Not started" },
   { value: "in_progress", label: "In progress" },
   { value: "at_risk", label: "At risk" },
@@ -65,11 +65,11 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
   /** When editing, the milestone to clone into the form */
-  milestone: DemoMilestone | null;
+  milestone: Milestone | null;
   filterYear: number;
   filterQuarter: string;
   /** `mode` is the dialog mode at save time — use this (not parent state) for create vs update. */
-  onSave: (milestone: DemoMilestone, mode: "create" | "edit") => void | Promise<void>;
+  onSave: (milestone: Milestone, mode: "create" | "edit") => void | Promise<void>;
   onDelete?: (id: string) => void | Promise<void>;
 };
 
@@ -84,14 +84,14 @@ export function MilestoneEditDialog({
   onDelete,
 }: Props) {
   const [draft, setDraft] = useState<MilestoneDraft>(() =>
-    milestone ? demoToDraft(milestone) : emptyDraft(filterYear, filterQuarter),
+    milestone ? milestoneToDraft(milestone) : emptyDraft(filterYear, filterQuarter),
   );
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setDraft(
-      milestone ? demoToDraft(milestone) : emptyDraft(filterYear, filterQuarter),
+      milestone ? milestoneToDraft(milestone) : emptyDraft(filterYear, filterQuarter),
     );
   }, [open, milestone, filterYear, filterQuarter]);
 
@@ -106,7 +106,7 @@ export function MilestoneEditDialog({
     }
     const id = milestone?.id ?? newId();
     try {
-      await Promise.resolve(onSave(draftToDemo(draft, id), mode));
+      await Promise.resolve(onSave(draftToMilestone(draft, id), mode));
       toast.success(mode === "create" ? "Milestone created." : "Milestone saved.");
       onOpenChange(false);
     } catch (e) {
@@ -501,7 +501,7 @@ export function MilestoneEditDialog({
                   </Label>
                   <Select
                     value={draft.status}
-                    onValueChange={(v) => update({ status: v as DemoMilestoneStatus })}
+                    onValueChange={(v) => update({ status: v as MilestoneStatus })}
                   >
                     <SelectTrigger id="ms-status" className={cn("h-10 rounded-lg", SOFT_FIELD)}>
                       <SelectValue />

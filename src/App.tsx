@@ -52,7 +52,7 @@ function AppLayout() {
         {showWorkflowPanel && <ProjectPanel />}
         {showMilestoneBoardPanel && <MilestoneBoardPanel />}
         <div
-          className="min-h-screen flex-1 transition-[margin] duration-200"
+          className="min-h-screen min-w-0 flex-1 transition-[margin] duration-200"
           style={{ marginLeft: mainMarginLeft, width: `calc(100% - ${mainMarginLeft}px)` }}
         >
           <Suspense fallback={<LoadingFallback />}>

@@ -1,6 +1,9 @@
-/** Demo shape for the Milestones UI; replace with Supabase models when wired. */
+/**
+ * Milestone shapes used across the UI — populated from Supabase (`mapDbToMilestone` in MilestonesPage)
+ * and from the edit draft (`draftToMilestone` in milestone-draft.ts).
+ */
 
-export type DemoMilestoneStatus =
+export type MilestoneStatus =
   | "not_started"
   | "in_progress"
   | "at_risk"
@@ -9,7 +12,7 @@ export type DemoMilestoneStatus =
   | "merged"
   | "completed";
 
-export type DemoChecklistItem = {
+export type MilestoneChecklistItem = {
   id: string;
   label: string;
   completed: boolean;
@@ -17,16 +20,18 @@ export type DemoChecklistItem = {
   completedOn?: string;
 };
 
-export type DemoTask = {
+export type MilestoneTask = {
   id: string;
   title: string;
   dueLabel: string;
   /** ISO date for editing */
   dueDate: string;
-  checklist: DemoChecklistItem[];
+  /** When the subtask was marked done (from DB), for roadmap progress fill */
+  completedAt?: string;
+  checklist: MilestoneChecklistItem[];
 };
 
-export type DemoMilestone = {
+export type Milestone = {
   id: string;
   title: string;
   description: string;
@@ -34,16 +39,19 @@ export type DemoMilestone = {
   tier: "major" | "minor";
   quarter: "Q1" | "Q2" | "Q3" | "Q4";
   year: number;
-  status: DemoMilestoneStatus;
+  status: MilestoneStatus;
   dueDate: string;
   driver: string;
   department: string;
   tags: string[];
   externalUrl?: string;
-  tasks: DemoTask[];
+  /** When the milestone was marked completed (from DB), for roadmap progress fill */
+  completedAt?: string;
+  tasks: MilestoneTask[];
 };
 
-export const DEMO_MILESTONES: DemoMilestone[] = [
+/** Optional local fixture; not used by the live Supabase-backed page. */
+export const MILESTONE_SAMPLE_DATA: Milestone[] = [
   {
     id: "1",
     title: "Product Vision",
