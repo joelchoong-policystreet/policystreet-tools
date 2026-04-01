@@ -111,7 +111,15 @@ export function MilestoneEditDialog({
       onOpenChange(false);
     } catch (e) {
       console.error(e);
-      toast.error(mode === "create" ? "Could not create milestone." : "Could not save milestone.");
+      const detail =
+        e && typeof e === "object" && "message" in e && typeof (e as { message: unknown }).message === "string"
+          ? (e as { message: string }).message
+          : e instanceof Error
+            ? e.message
+            : "";
+      toast.error(mode === "create" ? "Could not create milestone." : "Could not save milestone.", {
+        description: detail || undefined,
+      });
     }
   };
 
@@ -574,14 +582,14 @@ export function MilestoneEditDialog({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="ms-driver" className={SOFT_LABEL}>
-                    Driver
+                  <Label htmlFor="ms-pic" className={SOFT_LABEL}>
+                    PIC
                   </Label>
                   <Input
-                    id="ms-driver"
+                    id="ms-pic"
                     value={draft.driver}
                     onChange={(e) => update({ driver: e.target.value })}
-                    placeholder="Owner or driver"
+                    placeholder="Person in charge"
                     className={cn("h-10 rounded-lg placeholder:text-muted-foreground/55", SOFT_FIELD)}
                   />
                 </div>

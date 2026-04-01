@@ -8,6 +8,8 @@ import { AuthProvider, useAuth } from "@/features/auth/presentation/useAuth";
 import { AdminRoute } from "@/features/admin/presentation/AdminRoute";
 import { Sidebar } from "@/features/layout/presentation/Sidebar";
 import { ProjectPanel } from "@/features/layout/presentation/ProjectPanel";
+import { MilestoneBoardPanel } from "@/features/layout/presentation/MilestoneBoardPanel";
+import { DEFAULT_MILESTONE_BOARD_ID } from "@/features/milestones/config/milestoneBoards";
 import { LoadingFallback } from "@/shared/components/LoadingFallback";
 
 // Lazy-loaded routes
@@ -36,7 +38,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppLayout() {
   const location = useLocation();
-  const showProjectPanel = location.pathname.startsWith("/workflows");
+  const showWorkflowPanel = location.pathname.startsWith("/workflows");
+  const showMilestoneBoardPanel = location.pathname.startsWith("/milestones");
+  const showProjectPanel = showWorkflowPanel || showMilestoneBoardPanel;
   const mainMarginLeft = showProjectPanel
     ? SIDEBAR_WIDTH + PROJECT_PANEL_WIDTH
     : SIDEBAR_WIDTH;
@@ -45,7 +49,8 @@ function AppLayout() {
     <ProtectedRoute>
       <div className="flex">
         <Sidebar />
-        {showProjectPanel && <ProjectPanel />}
+        {showWorkflowPanel && <ProjectPanel />}
+        {showMilestoneBoardPanel && <MilestoneBoardPanel />}
         <div
           className="min-h-screen flex-1 transition-[margin] duration-200"
           style={{ marginLeft: mainMarginLeft, width: `calc(100% - ${mainMarginLeft}px)` }}
@@ -54,7 +59,8 @@ function AppLayout() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/report" element={<ReportPage />} />
-              <Route path="/milestones" element={<MilestonesPage />} />
+              <Route path="/milestones" element={<Navigate to={`/milestones/${DEFAULT_MILESTONE_BOARD_ID}`} replace />} />
+              <Route path="/milestones/:boardId" element={<MilestonesPage />} />
               <Route path="/database" element={<DatabasePage />} />
               <Route path="/workflows/imotorbike" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
               <Route path="/workflows/imotorbike/:projectId" element={<Navigate to="/workflows/affiliates/imotorbike" replace />} />
@@ -73,7 +79,18 @@ function AppLayout() {
   );
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      /** Avoid treating every navigation as a cold fetch; improves repeat visits and tab switches. */
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      /** Full refetch on every window focus is noisy for Supabase-backed lists and hurts perceived speed. */
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

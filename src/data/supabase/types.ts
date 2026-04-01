@@ -424,6 +424,24 @@ export type Database = {
           },
         ]
       }
+      milestone_boards: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          label: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+        }
+        Relationships: []
+      },
       milestone_task_checklist_items: {
         Row: {
           completed: boolean
@@ -526,34 +544,9 @@ export type Database = {
           },
         ]
       }
-      milestone_tags: {
-        Row: {
-          id: string
-          milestone_id: string
-          tag: string
-        }
-        Insert: {
-          id: string
-          milestone_id: string
-          tag: string
-        }
-        Update: {
-          id?: string
-          milestone_id?: string
-          tag?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "milestone_tags_milestone_id_fkey"
-            columns: ["milestone_id"]
-            isOneToOne: false
-            referencedRelation: "milestones"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       milestones: {
         Row: {
+          board_id: string
           completed_at: string | null
           created_at: string
           department: string
@@ -564,14 +557,14 @@ export type Database = {
           link: string | null
           quarter: string
           status: string
-          /** Legacy mirror; canonical tags live in `milestone_tags`. */
-          tags?: string[]
+          tags: string[] | null
           tier: string
           title: string
           user_id: string
           year: number
         }
         Insert: {
+          board_id: string
           completed_at?: string | null
           created_at?: string
           department: string
@@ -589,6 +582,7 @@ export type Database = {
           year: number
         }
         Update: {
+          board_id?: string
           completed_at?: string | null
           created_at?: string
           department?: string

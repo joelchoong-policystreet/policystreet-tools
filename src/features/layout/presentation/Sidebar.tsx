@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/features/auth/presentation/useAuth";
 import { useIsAdmin } from "@/features/auth/presentation/useIsAdmin";
+import { DEFAULT_MILESTONE_BOARD_ID } from "@/features/milestones/config/milestoneBoards";
 
 interface NavItemProps {
   to: string;
@@ -115,7 +116,12 @@ export function Sidebar() {
       <nav className="flex-1 w-full overflow-y-auto px-2 py-2 space-y-1">
         <Section label="Tools" icon={FileText} defaultOpen>
           <NavItem to="/report" icon={FileText} label="Report Generator" isActive={isActive("/report")} />
-          <NavItem to="/milestones" icon={Flag} label="Milestones" isActive={isMilestonesSuite()} />
+          <NavItem
+            to={`/milestones/${DEFAULT_MILESTONE_BOARD_ID}`}
+            icon={Flag}
+            label="Milestones"
+            isActive={isMilestonesSuite()}
+          />
         </Section>
 
         <div className="mx-2 my-1 border-t border-sidebar-border" />

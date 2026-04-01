@@ -35,6 +35,7 @@ function milestoneRowBase(m: DemoMilestone) {
     year: m.year,
     quarter: m.quarter,
     due_date: dueOrNull(m.dueDate),
+    tags: m.tags ?? [],
     driver: m.driver,
     department: m.department,
     link: m.externalUrl?.trim() || null,
@@ -42,48 +43,11 @@ function milestoneRowBase(m: DemoMilestone) {
   };
 }
 
-/** Canonical tags: `public.milestone_tags` (one row per tag). */
-export async function syncMilestoneTags(milestoneId: string, tags: string[]): Promise<void> {
-  const normalized = [...new Set(tags.map((t) => t.trim()).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b),
-  );
-  const { error: delErr } = await supabase.from("milestone_tags").delete().eq("milestone_id", milestoneId);
-  if (delErr) throw delErr;
-  if (normalized.length === 0) return;
-  const rows = normalized.map((tag) => ({
-    id: crypto.randomUUID(),
-    milestone_id: milestoneId,
-    tag,
-  }));
-  const { error: insErr } = await supabase.from("milestone_tags").insert(rows);
-  if (insErr) throw insErr;
-}
-
-export async function fetchMilestoneTagsByMilestoneIds(
-  milestoneIds: string[],
-): Promise<Record<string, string[]>> {
-  if (milestoneIds.length === 0) return {};
-  const { data, error } = await supabase
-    .from("milestone_tags")
-    .select("milestone_id,tag")
-    .in("milestone_id", milestoneIds);
-  if (error) throw error;
-  const out: Record<string, string[]> = {};
-  for (const row of data ?? []) {
-    const id = row.milestone_id;
-    if (!out[id]) out[id] = [];
-    out[id].push(row.tag);
-  }
-  for (const id of Object.keys(out)) {
-    out[id].sort((a, b) => a.localeCompare(b));
-  }
-  return out;
-}
-
 export async function persistMilestone(
   m: DemoMilestone,
   mode: "create" | "edit",
   userId: string,
+  boardId: string,
 ): Promise<void> {
   const base = milestoneRowBase(m);
 
@@ -91,11 +55,17 @@ export async function persistMilestone(
     const { error } = await supabase.from("milestones").insert({
       id: m.id,
       user_id: userId,
+      board_id: boardId,
       ...base,
     });
     if (error) throw error;
   } else {
-    const { data, error } = await supabase.from("milestones").update(base).eq("id", m.id).select("id");
+    const { data, error } = await supabase
+      .from("milestones")
+      .update(base)
+      .eq("id", m.id)
+      .eq("board_id", boardId)
+      .select("id");
     if (error) throw error;
     if (!data?.length) {
       throw new Error(
@@ -103,8 +73,6 @@ export async function persistMilestone(
       );
     }
   }
-
-  await syncMilestoneTags(m.id, m.tags);
 
   const draftTaskIds = new Set(m.tasks.map((t) => t.id));
   const existingTasks = await existingTaskIdsForMilestone(m.id);
@@ -177,9 +145,6 @@ export async function persistMilestone(
 }
 
 export async function deleteMilestoneById(milestoneId: string): Promise<void> {
-  const { error: tagErr } = await supabase.from("milestone_tags").delete().eq("milestone_id", milestoneId);
-  if (tagErr) throw tagErr;
-
   const { data: tasks, error: tErr } = await supabase
     .from("milestone_tasks")
     .select("id")
@@ -221,6 +186,21 @@ export async function setChecklistItemCompleted(itemId: string, completed: boole
     .update({ completed, completed_at })
     .eq("id", itemId);
   if (error) throw error;
+}
+
+export async function insertChecklistItem(taskId: string, label: string): Promise<string> {
+  const trimmed = label.trim();
+  if (!trimmed) throw new Error("Label is required");
+  const id = crypto.randomUUID();
+  const { error } = await supabase.from("milestone_task_checklist_items").insert({
+    id,
+    task_id: taskId,
+    label: trimmed,
+    completed: false,
+    completed_at: null,
+  });
+  if (error) throw error;
+  return id;
 }
 
 export type MilestoneUpdateRow = {
