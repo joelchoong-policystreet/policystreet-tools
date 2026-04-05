@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, FileText, Flag, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,6 +45,18 @@ import {
   type MilestoneDraft,
   type Quarter,
 } from "./milestone-draft";
+import {
+  driverForStorage,
+  fetchProfilesForPicPicker,
+  findProfileByStoredDriver,
+  profilePickerLabel,
+} from "../data/profilePickerApi";
+
+const PIC_UNASSIGNED = "__pic_unassigned__";
+
+function picLegacySelectValue(driver: string): string {
+  return `legacy:${encodeURIComponent(driver.trim())}`;
+}
 
 /** Muted “filled block” look for sidebar fields */
 const SOFT_FIELD =
@@ -99,28 +112,53 @@ export function MilestoneEditDialog({
     setDraft((d) => ({ ...d, ...patch }));
   };
 
-  const handleSave = async () => {
+  const { data: picProfiles = [], isLoading: picLoading, isError: picError } = useQuery({
+    queryKey: ["profiles-pic-picker"],
+    queryFn: fetchProfilesForPicPicker,
+    staleTime: 60_000,
+    enabled: open,
+  });
+
+  const picSelectValue = useMemo(() => {
+    const d = draft.driver;
+    if (!d?.trim()) return PIC_UNASSIGNED;
+    const p = findProfileByStoredDriver(d, picProfiles);
+    if (p) return p.id;
+    return picLegacySelectValue(d);
+  }, [draft.driver, picProfiles]);
+
+  const showPicLegacyOption = Boolean(
+    draft.driver?.trim() && !findProfileByStoredDriver(draft.driver, picProfiles),
+  );
+
+  const handlePicChange = (v: string) => {
+    if (v === PIC_UNASSIGNED) {
+      update({ driver: "" });
+      return;
+    }
+    if (v.startsWith("legacy:")) {
+      try {
+        update({ driver: decodeURIComponent(v.slice(7)) });
+      } catch {
+        update({ driver: "" });
+      }
+      return;
+    }
+    const p = picProfiles.find((x) => x.id === v);
+    if (p) update({ driver: driverForStorage(p, picProfiles) });
+  };
+
+  const handleSave = () => {
     if (!draft.title.trim()) {
       toast.error("Title is required.");
       return;
     }
     const id = milestone?.id ?? newId();
-    try {
-      await Promise.resolve(onSave(draftToMilestone(draft, id), mode));
-      toast.success(mode === "create" ? "Milestone created." : "Milestone saved.");
-      onOpenChange(false);
-    } catch (e) {
-      console.error(e);
-      const detail =
-        e && typeof e === "object" && "message" in e && typeof (e as { message: unknown }).message === "string"
-          ? (e as { message: string }).message
-          : e instanceof Error
-            ? e.message
-            : "";
-      toast.error(mode === "create" ? "Could not create milestone." : "Could not save milestone.", {
-        description: detail || undefined,
-      });
-    }
+    const milestoneToSave = draftToMilestone(draft, id);
+    onOpenChange(false);
+    void Promise.resolve(onSave(milestoneToSave, mode)).catch(() => {
+      /* errors and success toasts are handled in the parent */
+    });
   };
 
   const handleDelete = async () => {
@@ -145,6 +183,7 @@ export function MilestoneEditDialog({
         {
           id: newId(),
           title: "",
+          owner: "",
           dueDate: "",
           checklist: [],
         },
@@ -347,6 +386,13 @@ export function MilestoneEditDialog({
                               onChange={(e) => updateTask(task.id, { title: e.target.value })}
                               placeholder="Subtask title"
                               className="min-w-[10rem] flex-1 rounded-full border-indigo-100/90 bg-[hsl(252_45%_99%)] px-4 py-2 text-sm shadow-sm placeholder:text-muted-foreground/65 focus-visible:border-indigo-300 focus-visible:ring-2 focus-visible:ring-indigo-500/20"
+                            />
+                            <Input
+                              value={task.owner}
+                              onChange={(e) => updateTask(task.id, { owner: e.target.value })}
+                              placeholder="Owner"
+                              className="h-10 min-w-[7rem] max-w-[14rem] shrink-0 rounded-full border border-indigo-100/90 bg-white px-3 text-sm shadow-sm placeholder:text-muted-foreground/65 focus-visible:border-indigo-300 focus-visible:ring-2 focus-visible:ring-indigo-500/20"
+                              aria-label="Subtask owner"
                             />
                             <Input
                               type="date"
@@ -585,13 +631,45 @@ export function MilestoneEditDialog({
                   <Label htmlFor="ms-pic" className={SOFT_LABEL}>
                     PIC
                   </Label>
-                  <Input
-                    id="ms-pic"
-                    value={draft.driver}
-                    onChange={(e) => update({ driver: e.target.value })}
-                    placeholder="Person in charge"
-                    className={cn("h-10 rounded-lg placeholder:text-muted-foreground/55", SOFT_FIELD)}
-                  />
+                  {picError ? (
+                    <>
+                      <p className="text-xs text-destructive">Could not load users. You can type a name for now.</p>
+                      <Input
+                        id="ms-pic"
+                        value={draft.driver}
+                        onChange={(e) => update({ driver: e.target.value })}
+                        placeholder="Person in charge"
+                        className={cn("h-10 rounded-lg placeholder:text-muted-foreground/55", SOFT_FIELD)}
+                      />
+                    </>
+                  ) : (
+                    <Select
+                      value={picSelectValue}
+                      onValueChange={handlePicChange}
+                      disabled={picLoading}
+                    >
+                      <SelectTrigger
+                        id="ms-pic"
+                        className={cn("h-10 rounded-lg", SOFT_FIELD)}
+                        aria-label="Person in charge"
+                      >
+                        <SelectValue placeholder={picLoading ? "Loading users…" : "Select person"} />
+                      </SelectTrigger>
+                      <SelectContent position="popper" sideOffset={4}>
+                        <SelectItem value={PIC_UNASSIGNED}>Unassigned</SelectItem>
+                        {picProfiles.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {profilePickerLabel(p, picProfiles)}
+                          </SelectItem>
+                        ))}
+                        {showPicLegacyOption ? (
+                          <SelectItem value={picLegacySelectValue(draft.driver)}>
+                            {draft.driver.trim()} (not in directory)
+                          </SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">

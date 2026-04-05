@@ -11,13 +11,12 @@ import {
   List,
   ListChecks,
   Map,
-  Pin,
   Plus,
   Settings2,
-  Share2,
   Table,
   Upload,
   User,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -40,7 +40,7 @@ import type { Milestone, MilestoneStatus, MilestoneTask } from "./milestoneTypes
 import { MilestoneEditDialog } from "./MilestoneEditDialog";
 import { MilestoneRoadmapGantt } from "./MilestoneRoadmapGantt";
 import { useParams, useSearchParams, Navigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/data/supabase/client";
 import Papa from "papaparse";
 import {
@@ -138,14 +138,6 @@ type ViewMode = "list" | "roadmap" | "table";
 /** How checklist rows are shown in list/table (does not change stored data). */
 type ChecklistStatusFilter = "all" | "open_only" | "hidden";
 
-type PinnedView = {
-  year: number;
-  quarter: string;
-  driverFilter: string;
-  deptFilter: string;
-  checklistStatusFilter?: ChecklistStatusFilter;
-};
-
 type DbMilestone = {
   id: string;
   user_id: string;
@@ -169,6 +161,7 @@ type DbTask = {
   id: string;
   milestone_id: string;
   title: string;
+  owner: string | null;
   due_date: string | null;
   completed_at: string | null;
   created_at: string;
@@ -219,7 +212,7 @@ async function fetchTasks(milestoneIds: string[]): Promise<DbTask[]> {
   if (milestoneIds.length === 0) return [];
   const { data, error } = await (supabase as any)
     .from("milestone_tasks")
-    .select("id,milestone_id,title,due_date,completed_at,created_at")
+    .select("id,milestone_id,title,owner,due_date,completed_at,created_at")
     .in("milestone_id", milestoneIds)
     .order("milestone_id", { ascending: true })
     .order("created_at", { ascending: true })
@@ -241,6 +234,47 @@ async function fetchChecklist(taskIds: string[]): Promise<DbChecklistItem[]> {
 
   if (error) throw error;
   return (data ?? []) as DbChecklistItem[];
+}
+
+/** PIC filter value: show milestones/subtasks assigned to the signed-in user (via `profiles`). */
+const DRIVER_FILTER_ME = "me";
+
+type MyProfileRow = { name: string; email: string };
+
+async function fetchMyProfile(): Promise<MyProfileRow | null> {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("name,email")
+    .eq("id", auth.user.id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return { name: data.name ?? "", email: data.email ?? "" };
+}
+
+/** Match milestone PIC or subtask owner text to `public.profiles` name (or email / local part). */
+function labelMatchesProfile(label: string, profile: MyProfileRow): boolean {
+  const raw = label.trim();
+  if (!raw || raw === "—") return false;
+  const n = raw.toLowerCase();
+  const name = profile.name.trim().toLowerCase();
+  if (name && n === name) return true;
+  const email = profile.email.trim().toLowerCase();
+  if (name && email) {
+    const disambiguated = `${name} (${email})`;
+    if (n === disambiguated) return true;
+  }
+  if (email && n === email) return true;
+  const local = email.split("@")[0] ?? "";
+  if (local && n === local) return true;
+  return false;
+}
+
+function milestoneInvolvesProfile(m: Milestone, profile: MyProfileRow): boolean {
+  if (labelMatchesProfile(m.driver, profile)) return true;
+  return m.tasks.some((t) => labelMatchesProfile(t.owner, profile));
 }
 
 function mapDbToMilestone(m: DbMilestone, tasks: MilestoneTask[]): Milestone {
@@ -265,6 +299,126 @@ function mapDbToMilestone(m: DbMilestone, tasks: MilestoneTask[]): Milestone {
     completedAt: m.completed_at ?? undefined,
     tasks,
   };
+}
+
+function dbMilestoneSortCompare(a: DbMilestone, b: DbMilestone): number {
+  if (a.year !== b.year) return a.year - b.year;
+  if (a.quarter !== b.quarter) return a.quarter.localeCompare(b.quarter);
+  return a.created_at.localeCompare(b.created_at);
+}
+
+/** Build a DB row from the saved form so we can patch the milestones cache immediately after persist. */
+function milestoneToDbRow(
+  m: Milestone,
+  existing: DbMilestone | undefined,
+  userId: string,
+  boardId: string,
+): DbMilestone {
+  const completed_at =
+    m.status === "completed" ? (existing?.completed_at ?? new Date().toISOString()) : null;
+  return {
+    id: m.id,
+    user_id: existing?.user_id ?? userId,
+    board_id: boardId,
+    title: m.title,
+    description: m.description,
+    status: m.status,
+    tier: m.tier,
+    year: m.year,
+    quarter: m.quarter,
+    due_date: m.dueDate?.trim() || null,
+    tags: m.tags ?? [],
+    driver: m.driver,
+    department: m.department,
+    created_at: existing?.created_at ?? new Date().toISOString(),
+    link: m.externalUrl?.trim() || null,
+    completed_at,
+  };
+}
+
+/**
+ * Updates the milestones query cache so PIC, description, and other header fields show immediately.
+ * Invalidations still run in the background to reconcile tasks/checklist with the server.
+ */
+function applyMilestoneSaveToMilestonesCache(
+  queryClient: QueryClient,
+  boardId: string,
+  m: Milestone,
+  userId: string,
+  saveMode: "create" | "edit",
+) {
+  const milestones = queryClient.getQueryData<DbMilestone[]>(["milestones", boardId]) ?? [];
+  const existingRow = milestones.find((x) => x.id === m.id);
+  const row = milestoneToDbRow(m, existingRow, userId, boardId);
+
+  let nextMilestones: DbMilestone[];
+  if (saveMode === "create") {
+    nextMilestones = [...milestones, row].sort(dbMilestoneSortCompare);
+  } else {
+    const idx = milestones.findIndex((x) => x.id === m.id);
+    if (idx === -1) {
+      nextMilestones = [...milestones, row].sort(dbMilestoneSortCompare);
+    } else {
+      nextMilestones = [...milestones];
+      nextMilestones[idx] = row;
+    }
+  }
+  queryClient.setQueryData(["milestones", boardId], nextMilestones);
+}
+
+/** Patches task + checklist caches from the saved milestone so the UI can drop the loading state without waiting for refetch. */
+function applyMilestoneSaveToTasksAndChecklistCache(queryClient: QueryClient, boardId: string, m: Milestone) {
+  const milestones = queryClient.getQueryData<DbMilestone[]>(["milestones", boardId]) ?? [];
+  const milestoneIds = milestones.map((x) => x.id);
+  const prevTasks = queryClient.getQueryData<DbTask[]>(["milestone-tasks", milestoneIds]) ?? [];
+  const taskCreated = new globalThis.Map(prevTasks.map((t) => [t.id, t.created_at]));
+
+  const newTasksForM: DbTask[] = m.tasks.map((t) => ({
+    id: t.id,
+    milestone_id: m.id,
+    title: t.title.trim() || "Untitled task",
+    owner: t.owner.trim(),
+    due_date: t.dueDate?.trim() || null,
+    completed_at: t.completedAt ?? null,
+    created_at: taskCreated.get(t.id) ?? new Date().toISOString(),
+  }));
+
+  const otherTasks = prevTasks.filter((t) => t.milestone_id !== m.id);
+  const mergedTasks = [...otherTasks, ...newTasksForM].sort((a, b) => {
+    if (a.milestone_id !== b.milestone_id) return a.milestone_id.localeCompare(b.milestone_id);
+    if (a.created_at !== b.created_at) return a.created_at.localeCompare(b.created_at);
+    return a.id.localeCompare(b.id);
+  });
+  queryClient.setQueryData(["milestone-tasks", milestoneIds], mergedTasks);
+
+  const taskIds = mergedTasks.map((t) => t.id);
+  const prevChecklist =
+    queryClient.getQueryData<DbChecklistItem[]>(["milestone-task-checklist", taskIds]) ?? [];
+  const cCreated = new globalThis.Map(prevChecklist.map((c) => [c.id, c.created_at]));
+
+  const newChecklist: DbChecklistItem[] = [];
+  for (const task of m.tasks) {
+    for (const item of task.checklist) {
+      newChecklist.push({
+        id: item.id,
+        task_id: task.id,
+        label: item.label,
+        completed: item.completed,
+        completed_at: item.completedOn ?? null,
+        created_at: cCreated.get(item.id) ?? new Date().toISOString(),
+      });
+    }
+  }
+  const otherChecklist = prevChecklist.filter((c) => {
+    const task = mergedTasks.find((t) => t.id === c.task_id);
+    return !task || task.milestone_id !== m.id;
+  });
+  const mergedChecklist = [...otherChecklist, ...newChecklist].sort((a, b) => {
+    if (a.task_id !== b.task_id) return a.task_id.localeCompare(b.task_id);
+    if (a.created_at !== b.created_at) return a.created_at.localeCompare(b.created_at);
+    return a.id.localeCompare(b.id);
+  });
+  queryClient.setQueryData(["milestone-task-checklist", taskIds], mergedChecklist);
 }
 
 function normaliseStatus(raw: string | undefined): MilestoneStatus {
@@ -298,7 +452,6 @@ function normaliseQuarter(raw: string | undefined): DbMilestone["quarter"] {
 
 export default function MilestonesPage() {
   const { boardId } = useParams<{ boardId: string }>();
-  const pinStorageKey = `milestones:pinned-view:${boardId ?? ""}`;
 
   const { data: boardList = [], isLoading: boardsLoading } = useQuery({
     queryKey: ["milestone-boards"],
@@ -322,18 +475,26 @@ export default function MilestonesPage() {
     queryFn: () => fetchTasks(milestoneIds),
     enabled: milestoneIds.length > 0,
   });
+
+  const { data: myProfile, isPending: myProfilePending } = useQuery({
+    queryKey: ["milestone-my-profile"],
+    queryFn: fetchMyProfile,
+    staleTime: 60_000,
+  });
+
   const [searchParams] = useSearchParams();
-  const [year, setYear] = useState(2026);
-  const [quarter, setQuarter] = useState<string>("Q1");
-  const [driverFilter, setDriverFilter] = useState<string>("all");
+  const [year, setYear] = useState(() => getYear(new Date()));
+  const [quarter, setQuarter] = useState<string>(() => `Q${getQuarter(new Date())}` as string);
+  const [driverFilter, setDriverFilter] = useState<string>(DRIVER_FILTER_ME);
   const [deptFilter, setDeptFilter] = useState<string>("all");
   const [checklistStatusFilter, setChecklistStatusFilter] = useState<ChecklistStatusFilter>("all");
-  const [pinned, setPinned] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
   const [editOpen, setEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<"create" | "edit">("edit");
   const [editTarget, setEditTarget] = useState<Milestone | null>(null);
+  /** True while persist + refetches run after Save (modal is already closed). */
+  const [savingMilestone, setSavingMilestone] = useState(false);
 
   const taskIds = useMemo(() => dbTasks.map((t) => t.id), [dbTasks]);
 
@@ -379,6 +540,7 @@ export default function MilestonesPage() {
       list.push({
         id: t.id,
         title: t.title,
+        owner: (t.owner ?? "").trim(),
         dueDate: t.due_date ?? "",
         dueLabel: formatTaskDueLabel(t.due_date),
         completedAt: t.completed_at ?? undefined,
@@ -407,17 +569,71 @@ export default function MilestonesPage() {
     return milestones.filter((m) => {
       if (m.year !== year) return false;
       if (quarter !== "all" && m.quarter !== quarter) return false;
-      if (driverFilter !== "all" && m.driver !== driverFilter) return false;
       if (deptFilter !== "all" && m.department !== deptFilter) return false;
+      if (driverFilter === DRIVER_FILTER_ME) {
+        if (!myProfile) return false;
+        return milestoneInvolvesProfile(m, myProfile);
+      }
+      if (driverFilter !== "all" && m.driver !== driverFilter) return false;
       return true;
     });
-  }, [milestones, year, quarter, driverFilter, deptFilter]);
+  }, [milestones, year, quarter, driverFilter, deptFilter, myProfile]);
 
+  /** Highlight Filter when a named PIC is selected or dept/checklist are narrowed (not default "me" or cleared "all"). */
   const filtersActive =
-    driverFilter !== "all" || deptFilter !== "all" || checklistStatusFilter !== "all";
+    (driverFilter !== DRIVER_FILTER_ME && driverFilter !== "all") ||
+    deptFilter !== "all" ||
+    checklistStatusFilter !== "all";
+
+  /** Popover-only scope (year/quarter are on the toolbar above). PIC omitted when "All PICs". */
+  const activeFilterChips = useMemo(() => {
+    const chips: { key: string; label: string }[] = [];
+    if (driverFilter !== "all") {
+      const picLabel =
+        driverFilter === DRIVER_FILTER_ME ? "Assigned to me" : driverFilter;
+      chips.push({ key: "pic", label: `PIC: ${picLabel}` });
+    }
+    if (deptFilter !== "all") chips.push({ key: "dept", label: `Department: ${deptFilter}` });
+    if (checklistStatusFilter !== "all") {
+      chips.push({
+        key: "checklist",
+        label:
+          checklistStatusFilter === "open_only" ? "Checklist: Open only" : "Checklist: Hidden",
+      });
+    }
+    return chips;
+  }, [driverFilter, deptFilter, checklistStatusFilter]);
+
+  const removeActiveFilter = useCallback((key: string) => {
+    switch (key) {
+      case "pic":
+        setDriverFilter("all");
+        break;
+      case "dept":
+        setDeptFilter("all");
+        break;
+      case "checklist":
+        setChecklistStatusFilter("all");
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  const clearAllFilters = useCallback(() => {
+    const n = new Date();
+    setYear(getYear(n));
+    setQuarter(`Q${getQuarter(n)}` as string);
+    setDriverFilter("all");
+    setDeptFilter("all");
+    setChecklistStatusFilter("all");
+  }, []);
 
   /** True while board list or milestone rows for this board are still loading (not filter-empty). */
-  const milestonesBoardLoading = boardsLoading || milestonesLoading;
+  const milestonesBoardLoading =
+    boardsLoading ||
+    milestonesLoading ||
+    (driverFilter === DRIVER_FILTER_ME && myProfilePending);
 
   const [selectedId, setSelectedId] = useState<string | null>(filtered[0]?.id ?? null);
 
@@ -446,6 +662,9 @@ export default function MilestonesPage() {
     editMode === "edit" && editTarget
       ? (milestones.find((m) => m.id === editTarget.id) ?? editTarget)
       : null;
+
+  const showDetailSaveSkeleton = savingMilestone && viewMode === "list" && selected;
+  const showGlobalSaveSkeleton = savingMilestone && !showDetailSaveSkeleton;
 
   const [checklistState, setChecklistState] = useState<Record<string, boolean>>({});
   const [newUpdateMessage, setNewUpdateMessage] = useState("");
@@ -614,7 +833,7 @@ export default function MilestonesPage() {
     [isItemDone, queryClient],
   );
 
-  // Initialise filters based on URL, pinned view, or today's date/quarter
+  // Initialise filters from URL query (?y=&q=&d=&dept=&cl=) when present; otherwise defaults come from useState.
   useEffect(() => {
     const params = searchParams;
     const yParam = params.get("y");
@@ -640,80 +859,13 @@ export default function MilestonesPage() {
       if (clParam === "open") setChecklistStatusFilter("open_only");
       else if (clParam === "hidden") setChecklistStatusFilter("hidden");
       else if (clParam === "all") setChecklistStatusFilter("all");
-      setPinned(false);
       return;
-    }
-
-    try {
-      const raw = window.localStorage.getItem(pinStorageKey);
-      if (raw) {
-        const stored = JSON.parse(raw) as PinnedView;
-        if (stored.year) setYear(stored.year);
-        if (stored.quarter) setQuarter(stored.quarter);
-        if (stored.driverFilter) setDriverFilter(stored.driverFilter);
-        if (stored.deptFilter) setDeptFilter(stored.deptFilter);
-        if (
-          stored.checklistStatusFilter === "all" ||
-          stored.checklistStatusFilter === "open_only" ||
-          stored.checklistStatusFilter === "hidden"
-        ) {
-          setChecklistStatusFilter(stored.checklistStatusFilter);
-        }
-        setPinned(true);
-        return;
-      }
-    } catch {
-      // ignore storage errors
     }
 
     const today = new Date();
     setYear(getYear(today));
     setQuarter(`Q${getQuarter(today)}` as string);
   }, [searchParams, boardId]);
-
-  // Persist pinned view whenever filters change while pinned
-  useEffect(() => {
-    if (!pinned) return;
-    const payload: PinnedView = {
-      year,
-      quarter,
-      driverFilter,
-      deptFilter,
-      checklistStatusFilter,
-    };
-    try {
-      window.localStorage.setItem(pinStorageKey, JSON.stringify(payload));
-    } catch {
-      // ignore storage errors
-    }
-  }, [pinned, year, quarter, driverFilter, deptFilter, checklistStatusFilter]);
-
-  const handleTogglePinned = () => {
-    setPinned((prev) => {
-      const next = !prev;
-      if (!next) {
-        try {
-          window.localStorage.removeItem(pinStorageKey);
-        } catch {
-          // ignore
-        }
-      } else {
-        const payload: PinnedView = {
-          year,
-          quarter,
-          driverFilter,
-          deptFilter,
-          checklistStatusFilter,
-        };
-        try {
-          window.localStorage.setItem(pinStorageKey, JSON.stringify(payload));
-        } catch {
-          // ignore
-        }
-      }
-      return next;
-    });
-  };
 
   const handleAddUpdate = async () => {
     if (!selectedId) return;
@@ -839,16 +991,35 @@ export default function MilestonesPage() {
   };
 
   const handleSaveMilestone = async (m: Milestone, saveMode: "create" | "edit") => {
-    const { data: auth, error: authError } = await supabase.auth.getUser();
-    if (authError || !auth.user) {
-      toast.error("You must be signed in to save milestones.");
-      throw new Error("Not authenticated");
+    setSavingMilestone(true);
+    try {
+      const { data: auth, error: authError } = await supabase.auth.getUser();
+      if (authError || !auth.user) {
+        toast.error("You must be signed in to save milestones.");
+        throw new Error("Not authenticated");
+      }
+      await persistMilestone(m, saveMode, auth.user.id, boardId!);
+      setSelectedId(m.id);
+      applyMilestoneSaveToMilestonesCache(queryClient, boardId!, m, auth.user.id, saveMode);
+      applyMilestoneSaveToTasksAndChecklistCache(queryClient, boardId!, m);
+      void queryClient.invalidateQueries({ queryKey: ["milestones", boardId] });
+      void queryClient.invalidateQueries({ queryKey: ["milestone-tasks"] });
+      void queryClient.invalidateQueries({ queryKey: ["milestone-task-checklist"] });
+      toast.success(saveMode === "create" ? "Milestone created." : "Milestone saved.");
+    } catch (e) {
+      console.error(e);
+      const detail =
+        e && typeof e === "object" && "message" in e && typeof (e as { message: unknown }).message === "string"
+          ? (e as { message: string }).message
+          : e instanceof Error
+            ? e.message
+            : "";
+      toast.error(saveMode === "create" ? "Could not create milestone." : "Could not save milestone.", {
+        description: detail || undefined,
+      });
+    } finally {
+      setSavingMilestone(false);
     }
-    await persistMilestone(m, saveMode, auth.user.id, boardId!);
-    setSelectedId(m.id);
-    await queryClient.invalidateQueries({ queryKey: ["milestones", boardId] });
-    await queryClient.invalidateQueries({ queryKey: ["milestone-tasks"] });
-    await queryClient.invalidateQueries({ queryKey: ["milestone-task-checklist"] });
   };
 
   const handleDeleteMilestone = async (id: string) => {
@@ -858,26 +1029,6 @@ export default function MilestonesPage() {
     await queryClient.invalidateQueries({ queryKey: ["milestone-tasks"] });
     await queryClient.invalidateQueries({ queryKey: ["milestone-task-checklist"] });
     await queryClient.invalidateQueries({ queryKey: ["milestone-updates"] });
-  };
-
-  const handleShareView = () => {
-    const params = new URLSearchParams({
-      y: String(year),
-      q: quarter,
-      d: driverFilter,
-      dept: deptFilter,
-      cl:
-        checklistStatusFilter === "open_only"
-          ? "open"
-          : checklistStatusFilter === "hidden"
-            ? "hidden"
-            : "all",
-    });
-    const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
-    void navigator.clipboard.writeText(url).then(
-      () => toast.success("View link copied to clipboard."),
-      () => toast.error("Could not copy link."),
-    );
   };
 
   if (!boardId) {
@@ -900,44 +1051,18 @@ export default function MilestonesPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
               Your milestones
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{boardLabel}</span>
-              {" · "}
-              Period, PIC, and department filters — pick a milestone for full detail.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9 gap-2 rounded-lg border-indigo-200 bg-white px-3"
-              onClick={handleShareView}
-            >
-              <Share2 className="h-4 w-4" aria-hidden />
-              Share view
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 gap-2 rounded-lg border-indigo-200 bg-white px-3",
-                pinned && "border-indigo-400 bg-indigo-50 text-indigo-900",
-              )}
-              onClick={handleTogglePinned}
-              aria-pressed={pinned}
-            >
-              <Pin className={cn("h-4 w-4", pinned && "fill-current")} aria-hidden />
-              Pin this view
-            </Button>
+            {boardLabel ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">{boardLabel}</span>
+              </p>
+            ) : null}
           </div>
         </header>
 
         {/* Toolbar: left = year, quarter, views | right = add, upload, filter (PIC/dept) */}
         <section
           aria-label="Filters and actions"
-          className="mb-6 flex min-w-0 flex-nowrap items-center gap-2 border-b border-border pb-3 md:gap-3"
+          className="flex min-w-0 flex-nowrap items-center gap-2 border-b border-border pb-2 md:gap-3"
         >
           <div className="flex min-h-0 min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto md:gap-3">
             <div className="flex h-10 shrink-0 items-center gap-1 rounded-lg border border-border bg-white px-1 py-0.5 shadow-sm">
@@ -1098,6 +1223,7 @@ export default function MilestonesPage() {
                     <SelectValue placeholder="PIC" />
                   </SelectTrigger>
                   <SelectContent position="popper" sideOffset={4}>
+                    <SelectItem value={DRIVER_FILTER_ME}>Assigned to me (profile name)</SelectItem>
                     <SelectItem value="all">All PICs</SelectItem>
                     {drivers
                       .filter((d) => d !== "all")
@@ -1149,6 +1275,56 @@ export default function MilestonesPage() {
           </div>
         </section>
 
+        {activeFilterChips.length > 0 ? (
+          <div
+            className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/40 py-2"
+            aria-label="Current filters"
+          >
+            <span className="shrink-0 text-xs text-muted-foreground">Active filters</span>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs">
+              {activeFilterChips.map((c) => (
+                <span
+                  key={c.key}
+                  className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-2.5 pr-1 text-foreground"
+                >
+                  <span className="truncate">{c.label}</span>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label={`Reset ${c.label}`}
+                    onClick={() => removeActiveFilter(c.key)}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="shrink-0 text-xs font-medium text-[#3b5bfd] hover:underline"
+              onClick={clearAllFilters}
+            >
+              Clear all
+            </button>
+          </div>
+        ) : null}
+
+        {showGlobalSaveSkeleton ? (
+          <div
+            className="mb-4 rounded-2xl border border-indigo-100/80 bg-indigo-50/40 p-4 sm:p-5"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <p className="mb-3 text-xs font-medium text-muted-foreground">Saving milestone…</p>
+            <div className="space-y-2.5">
+              <Skeleton className="h-4 w-48 max-w-full" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-[92%]" />
+              <Skeleton className="h-3 w-[70%]" />
+            </div>
+          </div>
+        ) : null}
+
         {/* Main content */}
         {viewMode === "list" && (
           <div className="grid min-h-[560px] gap-4 lg:grid-cols-12">
@@ -1179,6 +1355,9 @@ export default function MilestonesPage() {
             {/* Detail */}
             <div className="lg:col-span-7 xl:col-span-8">
               {selected ? (
+                showDetailSaveSkeleton ? (
+                  <MilestoneDetailPanelSkeleton />
+                ) : (
                 <article
                   tabIndex={0}
                   role="region"
@@ -1336,6 +1515,10 @@ export default function MilestonesPage() {
                             <div className="flex flex-wrap items-baseline justify-between gap-2">
                               <p className="font-medium text-foreground">{task.title}</p>
                               <p className="text-xs text-muted-foreground">
+                                {task.owner.trim()
+                                  ? `Owner: ${task.owner}`
+                                  : null}
+                                {task.owner.trim() && task.dueDate?.trim() ? " · " : null}
                                 {task.dueDate?.trim() ? `Due ${task.dueLabel}` : "No due date"}
                               </p>
                             </div>
@@ -1460,6 +1643,7 @@ export default function MilestonesPage() {
                     </div>
                   </section>
                 </article>
+                )
               ) : (
                 <div className="flex h-full min-h-[320px] items-center justify-center rounded-2xl border border-dashed border-border bg-white/60 p-8 text-center text-sm text-muted-foreground">
                   Select a milestone to see details.
@@ -1684,6 +1868,7 @@ export default function MilestonesPage() {
                                       >
                                         <p className="font-medium leading-snug text-foreground">{task.title}</p>
                                         <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                          {task.owner.trim() ? `${task.owner} · ` : ""}
                                           {task.dueDate?.trim() ? `Due ${task.dueLabel}` : "No due date"}
                                           {" · "}
                                           {checklistSummary}
@@ -1851,6 +2036,46 @@ export default function MilestonesPage() {
           onDelete={editMode === "edit" ? handleDeleteMilestone : undefined}
         />
       </main>
+    </div>
+  );
+}
+
+/** Placeholder while a milestone save + refetch is in progress (modal already closed). */
+function MilestoneDetailPanelSkeleton() {
+  return (
+    <div
+      className="min-h-[min(70vh,640px)] rounded-2xl border border-indigo-100/80 bg-indigo-50/40 p-6 shadow-sm ring-1 ring-black/[0.04]"
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <p className="mb-4 text-xs font-medium text-muted-foreground">Saving milestone…</p>
+      <div className="flex items-start justify-between gap-4">
+        <Skeleton className="h-3 w-32" />
+        <Skeleton className="h-4 w-16" />
+      </div>
+      <Skeleton className="mt-6 h-8 w-[85%] max-w-xl" />
+      <div className="mt-4 space-y-2">
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-4/5" />
+      </div>
+      <div className="mt-6 flex flex-wrap gap-4">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-4 w-32" />
+      </div>
+      <div className="mt-6 flex gap-2">
+        <Skeleton className="h-8 w-24 rounded-full" />
+        <Skeleton className="h-4 w-16" />
+      </div>
+      <div className="mt-8 space-y-3 border-t border-border/40 pt-8">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-16 w-full rounded-xl" />
+        <Skeleton className="h-16 w-full rounded-xl" />
+      </div>
+      <div className="mt-8 space-y-3 border-t border-border/40 pt-8">
+        <Skeleton className="h-4 w-36" />
+        <Skeleton className="h-20 w-full rounded-xl" />
+      </div>
     </div>
   );
 }

@@ -23,6 +23,8 @@ export type MilestoneChecklistItem = {
 export type MilestoneTask = {
   id: string;
   title: string;
+  /** Person responsible for this subtask (same idea as milestone driver / PIC). */
+  owner: string;
   dueLabel: string;
   /** ISO date for editing */
   dueDate: string;
@@ -71,6 +73,7 @@ export const MILESTONE_SAMPLE_DATA: Milestone[] = [
       {
         id: "t1",
         title: "Drafting product vision",
+        owner: "Joel",
         dueLabel: "Mar 31, 2026",
         dueDate: "2026-03-31",
         checklist: [

@@ -19,6 +19,7 @@ export type DraftChecklistItem = {
 export type DraftTask = {
   id: string;
   title: string;
+  owner: string;
   dueDate: string;
   checklist: DraftChecklistItem[];
 };
@@ -68,6 +69,7 @@ export function milestoneToDraft(m: Milestone): MilestoneDraft {
     tasks: m.tasks.map((t) => ({
       id: t.id,
       title: t.title,
+      owner: t.owner,
       dueDate: t.dueDate,
       checklist: t.checklist.map((c) => ({
         id: c.id,
@@ -92,6 +94,7 @@ function draftTasksToMilestone(tasks: DraftTask[]): MilestoneTask[] {
   return tasks.map((t) => ({
     id: t.id,
     title: t.title,
+    owner: t.owner.trim(),
     dueDate: t.dueDate,
     dueLabel: taskDueLabel(t.dueDate),
     checklist: draftChecklistToMilestone(t.checklist),

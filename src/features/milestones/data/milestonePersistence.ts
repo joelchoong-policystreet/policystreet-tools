@@ -16,13 +16,21 @@ async function existingTaskIdsForMilestone(milestoneId: string): Promise<Set<str
   return new Set((data ?? []).map((r) => r.id));
 }
 
-async function existingChecklistIdsForTask(taskId: string): Promise<Set<string>> {
+/** One round-trip: existing checklist row ids grouped by task (replaces N per-task fetches). */
+async function existingChecklistIdsByTaskId(taskIds: string[]): Promise<Map<string, Set<string>>> {
+  const map = new Map<string, Set<string>>();
+  if (taskIds.length === 0) return map;
   const { data, error } = await supabase
     .from("milestone_task_checklist_items")
-    .select("id")
-    .eq("task_id", taskId);
+    .select("id,task_id")
+    .in("task_id", taskIds);
   if (error) throw error;
-  return new Set((data ?? []).map((r) => r.id));
+  for (const row of data ?? []) {
+    const s = map.get(row.task_id) ?? new Set<string>();
+    s.add(row.id);
+    map.set(row.task_id, s);
+  }
+  return map;
 }
 
 function milestoneRowBase(m: Milestone) {
@@ -88,60 +96,77 @@ export async function persistMilestone(
     if (delT) throw delT;
   }
 
-  for (const task of m.tasks) {
-    const title = task.title.trim() || "Untitled task";
-    const due_date = dueOrNull(task.dueDate);
-    if (existingTasks.has(task.id)) {
-      const { error } = await supabase
-        .from("milestone_tasks")
-        .update({ title, due_date })
-        .eq("id", task.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from("milestone_tasks").insert({
-        id: task.id,
-        milestone_id: m.id,
-        title,
-        due_date,
-      });
-      if (error) throw error;
-    }
+  const draftTaskIdList = m.tasks.map((t) => t.id);
+  const checklistExistingByTask = await existingChecklistIdsByTaskId(draftTaskIdList);
 
-    const itemIds = new Set(task.checklist.map((c) => c.id));
-    const existingItems = await existingChecklistIdsForTask(task.id);
-    const itemsToRemove = [...existingItems].filter((id) => !itemIds.has(id));
-    if (itemsToRemove.length > 0) {
-      const { error } = await supabase
-        .from("milestone_task_checklist_items")
-        .delete()
-        .in("id", itemsToRemove);
-      if (error) throw error;
-    }
-
-    for (const item of task.checklist) {
-      const completed_at = item.completed ? (item.completedOn ?? new Date().toISOString()) : null;
-      if (existingItems.has(item.id)) {
+  await Promise.all(
+    m.tasks.map(async (task) => {
+      const title = task.title.trim() || "Untitled task";
+      const due_date = dueOrNull(task.dueDate);
+      const owner = task.owner?.trim() ?? "";
+      if (existingTasks.has(task.id)) {
         const { error } = await supabase
-          .from("milestone_task_checklist_items")
-          .update({
-            label: item.label,
-            completed: item.completed,
-            completed_at,
-          })
-          .eq("id", item.id);
+          .from("milestone_tasks")
+          .update({ title, due_date, owner })
+          .eq("id", task.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("milestone_task_checklist_items").insert({
-          id: item.id,
-          task_id: task.id,
-          label: item.label,
-          completed: item.completed,
-          completed_at,
+        const { error } = await supabase.from("milestone_tasks").insert({
+          id: task.id,
+          milestone_id: m.id,
+          title,
+          due_date,
+          owner,
         });
         if (error) throw error;
       }
+    }),
+  );
+
+  const checklistIdsToRemove: string[] = [];
+  for (const task of m.tasks) {
+    const existingItems = checklistExistingByTask.get(task.id) ?? new Set<string>();
+    const itemIds = new Set(task.checklist.map((c) => c.id));
+    for (const id of existingItems) {
+      if (!itemIds.has(id)) checklistIdsToRemove.push(id);
     }
   }
+  if (checklistIdsToRemove.length > 0) {
+    const { error } = await supabase
+      .from("milestone_task_checklist_items")
+      .delete()
+      .in("id", checklistIdsToRemove);
+    if (error) throw error;
+  }
+
+  await Promise.all(
+    m.tasks.flatMap((task) => {
+      const existingItems = checklistExistingByTask.get(task.id) ?? new Set<string>();
+      return task.checklist.map(async (item) => {
+        const completed_at = item.completed ? (item.completedOn ?? new Date().toISOString()) : null;
+        if (existingItems.has(item.id)) {
+          const { error } = await supabase
+            .from("milestone_task_checklist_items")
+            .update({
+              label: item.label,
+              completed: item.completed,
+              completed_at,
+            })
+            .eq("id", item.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("milestone_task_checklist_items").insert({
+            id: item.id,
+            task_id: task.id,
+            label: item.label,
+            completed: item.completed,
+            completed_at,
+          });
+          if (error) throw error;
+        }
+      });
+    }),
+  );
 }
 
 export async function deleteMilestoneById(milestoneId: string): Promise<void> {

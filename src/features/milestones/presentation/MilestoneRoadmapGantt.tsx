@@ -607,11 +607,12 @@ export function MilestoneRoadmapGantt({
                       >
                         {task.title}
                       </button>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">
-                        {task.dueDate?.trim()
-                          ? `Due ${format(parseISO(task.dueDate), "d MMM yyyy")}`
-                          : "No due date"}
-                      </p>
+                                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                  {task.owner.trim() ? `${task.owner} · ` : ""}
+                                  {task.dueDate?.trim()
+                                    ? `Due ${format(parseISO(task.dueDate), "d MMM yyyy")}`
+                                    : "No due date"}
+                                </p>
                     </div>
                   </div>
                 </div>

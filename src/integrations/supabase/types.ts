@@ -466,6 +466,7 @@ export type Database = {
           due_date: string | null
           id: string
           milestone_id: string
+          owner: string
           title: string
         }
         Insert: {
@@ -474,6 +475,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           milestone_id: string
+          owner?: string
           title: string
         }
         Update: {
@@ -482,6 +484,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           milestone_id?: string
+          owner?: string
           title?: string
         }
         Relationships: [

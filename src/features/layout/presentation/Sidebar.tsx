@@ -13,8 +13,8 @@ import {
   Settings,
   LogOut,
   Shield,
-  Flag,
 } from "lucide-react";
+import { FinishLineIcon } from "@/components/icons/FinishLineIcon";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -118,7 +118,7 @@ export function Sidebar() {
           <NavItem to="/report" icon={FileText} label="Report Generator" isActive={isActive("/report")} />
           <NavItem
             to={`/milestones/${DEFAULT_MILESTONE_BOARD_ID}`}
-            icon={Flag}
+            icon={FinishLineIcon}
             label="Milestones"
             isActive={isMilestonesSuite()}
           />
