@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ClipboardList, Search, Download, Settings } from "lucide-react";
 import {
@@ -35,6 +35,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { getPaginationPageItems } from "@/shared/lib/pagination";
+
+const OCR_CSV_UPLOAD_CHANGE = "OCR Data CSV uploaded";
 
 type AuditDetails = {
   before?: string | null;
@@ -63,6 +66,69 @@ function filterByTime(entries: AuditLogEntry[], filter: TimeFilter): AuditLogEnt
   else if (filter === "30d") from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   else from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
   return entries.filter((e) => e.time >= from);
+}
+
+/** Parses `"{project} - N row(s)"` from OCR upload audit rows. */
+function parseOcrUploadItemAffected(itemAffected: string): { project: string; rows: number } | null {
+  const m = itemAffected.match(/^(.+?)\s*-\s*(\d+)\s*row/i);
+  if (!m) return null;
+  return { project: m[1].trim(), rows: parseInt(m[2], 10) };
+}
+
+/**
+ * Merges repeated OCR CSV upload audit lines (e.g. automated one-row inserts) into
+ * one entry per calendar day and project, with total rows and upload count.
+ */
+function aggregateOcrCsvUploadAuditLogs(entries: AuditLogEntry[]): AuditLogEntry[] {
+  const others: AuditLogEntry[] = [];
+  type Group = { entries: AuditLogEntry[] };
+  const groups = new Map<string, Group>();
+
+  for (const e of entries) {
+    if (e.change !== OCR_CSV_UPLOAD_CHANGE) {
+      others.push(e);
+      continue;
+    }
+    const parsed = parseOcrUploadItemAffected(e.itemAffected);
+    if (!parsed) {
+      others.push(e);
+      continue;
+    }
+    const day = format(e.time, "yyyy-MM-dd");
+    const key = `${day}\0${parsed.project}`;
+    const g = groups.get(key);
+    if (g) g.entries.push(e);
+    else groups.set(key, { entries: [e] });
+  }
+
+  const merged: AuditLogEntry[] = [];
+  for (const [, { entries: group }] of groups) {
+    group.sort((a, b) => b.time.getTime() - a.time.getTime());
+    const latest = group[0];
+    const project = parseOcrUploadItemAffected(latest.itemAffected)?.project ?? "";
+    const totalRows = group.reduce((sum, row) => {
+      const p = parseOcrUploadItemAffected(row.itemAffected);
+      return sum + (p?.rows ?? 0);
+    }, 0);
+    const uploadCount = group.length;
+    const users = [...new Set(group.map((x) => x.user))];
+    const userLabel = users.length === 1 ? users[0] : `${users.length} users`;
+
+    merged.push({
+      id: `agg-ocr:${format(latest.time, "yyyy-MM-dd")}:${project}:${latest.id}`,
+      time: latest.time,
+      user: userLabel,
+      eventType: latest.eventType,
+      change: OCR_CSV_UPLOAD_CHANGE,
+      itemAffected:
+        uploadCount > 1
+          ? `${project} — ${totalRows} row(s) total · ${uploadCount} uploads this day`
+          : `${project} — ${totalRows} row(s)`,
+      details: null,
+    });
+  }
+
+  return [...others, ...merged].sort((a, b) => b.time.getTime() - a.time.getTime());
 }
 
 function DetailsContent({ entry }: { entry: AuditLogEntry }) {
@@ -182,11 +248,29 @@ export default function AdminAuditLogsPage() {
     return list.sort((a, b) => b.time.getTime() - a.time.getTime());
   }, [logs, keyword, timeFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+  const displayLogs = useMemo(
+    () => aggregateOcrCsvUploadAuditLogs(filteredLogs),
+    [filteredLogs]
+  );
+
+  const totalPages = Math.max(1, Math.ceil(displayLogs.length / PAGE_SIZE));
   const paginatedLogs = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredLogs.slice(start, start + PAGE_SIZE);
-  }, [filteredLogs, currentPage]);
+    return displayLogs.slice(start, start + PAGE_SIZE);
+  }, [displayLogs, currentPage]);
+
+  const pageItems = useMemo(
+    () => getPaginationPageItems(currentPage, totalPages, 9),
+    [currentPage, totalPages]
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword, timeFilter]);
+
+  useEffect(() => {
+    setCurrentPage((p) => Math.min(p, totalPages));
+  }, [totalPages]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -238,9 +322,9 @@ export default function AdminAuditLogsPage() {
           </div>
         </div>
 
-        <div className="flex justify-center mb-4">
+        <div className="flex justify-center mb-4 max-w-full overflow-x-auto">
           <Pagination>
-            <PaginationContent>
+            <PaginationContent className="flex-wrap justify-center">
               <PaginationItem>
                 <PaginationPrevious
                   href="#"
@@ -251,20 +335,28 @@ export default function AdminAuditLogsPage() {
                   className={currentPage <= 1 ? "pointer-events-none opacity-50" : ""}
                 />
               </PaginationItem>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <PaginationItem key={p}>
-                  <PaginationLink
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setCurrentPage(p);
-                    }}
-                    isActive={currentPage === p}
-                  >
-                    {p}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
+              {pageItems.map((p, idx) =>
+                p === "ellipsis" ? (
+                  <PaginationItem key={`ellipsis-${idx}`}>
+                    <span className="flex h-9 min-w-9 items-center justify-center px-1 text-muted-foreground sm:px-2">
+                      …
+                    </span>
+                  </PaginationItem>
+                ) : (
+                  <PaginationItem key={p}>
+                    <PaginationLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setCurrentPage(p);
+                      }}
+                      isActive={currentPage === p}
+                    >
+                      {p}
+                    </PaginationLink>
+                  </PaginationItem>
+                )
+              )}
               <PaginationItem>
                 <PaginationNext
                   href="#"
