@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, getISOWeek, getISOWeekYear, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import {
@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Table,
   TableBody,
@@ -41,6 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { DateRange } from "react-day-picker";
 
 type ConsumerRow = {
   day: string;
@@ -405,8 +407,26 @@ export default function ConsumerDataDashboardPage() {
   const [selectedYear, setSelectedYear] = useState(String(DEFAULT_YEAR));
   const [granularity, setGranularity] = useState<Granularity>("month");
   const [periodMode, setPeriodMode] = useState<PeriodMode>("full_year");
-  const [customStartDate, setCustomStartDate] = useState("");
-  const [customEndDate, setCustomEndDate] = useState("");
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined);
+  const [customRangeDropdownOpen, setCustomRangeDropdownOpen] = useState(false);
+  const customRangePanelRef = useRef<HTMLDivElement | null>(null);
+  const customRangeLabel = useMemo(() => {
+    if (!customRange?.from) return "Custom range";
+    if (!customRange.to) return `Custom: ${format(customRange.from, "dd/MM/yyyy")}`;
+    return `Custom: ${format(customRange.from, "dd/MM/yyyy")} - ${format(customRange.to, "dd/MM/yyyy")}`;
+  }, [customRange]);
+
+  useEffect(() => {
+    if (!customRangeDropdownOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (customRangePanelRef.current?.contains(target)) return;
+      setCustomRangeDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [customRangeDropdownOpen]);
 
   const yearNum = Number.parseInt(selectedYear, 10);
 
@@ -418,9 +438,14 @@ export default function ConsumerDataDashboardPage() {
       return rows.filter((r) => r.day >= start && r.day <= end);
     }
     if (periodMode === "custom_range") {
-      const start = customStartDate || availableDateRange.min;
-      const end = customEndDate || availableDateRange.max;
-      if (!start || !end) return [];
+      const selectedStart = customRange?.from ? format(customRange.from, "yyyy-MM-dd") : "";
+      const selectedEnd = customRange?.to
+        ? format(customRange.to, "yyyy-MM-dd")
+        : selectedStart;
+      const start = selectedStart || availableDateRange.min;
+      const end = selectedEnd || availableDateRange.max;
+      if (!start) return [];
+      if (!end) return rows.filter((r) => r.day >= start);
       const from = start <= end ? start : end;
       const to = start <= end ? end : start;
       return rows.filter((r) => r.day >= from && r.day <= to);
@@ -433,7 +458,7 @@ export default function ConsumerDataDashboardPage() {
       });
     }
     return rows.filter((r) => parseISO(r.day).getFullYear() === yearNum);
-  }, [rows, yearNum, periodMode, granularity, customStartDate, customEndDate, availableDateRange]);
+  }, [rows, yearNum, periodMode, granularity, customRange, availableDateRange]);
 
   const effectiveGranularity = useMemo<Granularity>(() => {
     if (periodMode === "full_year") return granularity;
@@ -543,6 +568,8 @@ export default function ConsumerDataDashboardPage() {
   const showNewCustomerSeries = effectiveActiveCustomerSeries.includes("newPolicyCnt");
   const showReturningCustomerSeries = effectiveActiveCustomerSeries.includes("returningPolicyCnt");
   const useLineForDailyCounts = effectiveGranularity === "day";
+  const leadsBarOpacity = showLeadsSeries ? 1 : 0.22;
+  const policyBarOpacity = showPolicySeries ? 1 : 0.22;
   const countsChartKey = `counts:${effectiveActiveCountSeries.slice().sort().join("|")}`;
   const revenueChartKey = `revenue:${effectiveActiveRevenueSeries.slice().sort().join("|")}`;
   const customersChartKey = `customers:${effectiveActiveCustomerSeries.slice().sort().join("|")}`;
@@ -597,15 +624,28 @@ export default function ConsumerDataDashboardPage() {
             <CardTitle className="text-base">View filter</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-[1.1fr_0.7fr_2.2fr] md:items-end">
-            <div className="space-y-2 min-w-0">
+            <div className="space-y-2 min-w-0 relative">
               <Label htmlFor="f-period">Period</Label>
               <Select
                 value={periodMode}
-                onValueChange={(v) => v && setPeriodMode(v as PeriodMode)}
+                onValueChange={(v) => {
+                  if (!v) return;
+                  const nextMode = v as PeriodMode;
+                  setPeriodMode(nextMode);
+                  if (nextMode === "custom_range") {
+                    setTimeout(() => setCustomRangeDropdownOpen(true), 0);
+                  } else {
+                    setCustomRangeDropdownOpen(false);
+                  }
+                }}
                 disabled={isLoading}
               >
                 <SelectTrigger id="f-period">
-                  <SelectValue />
+                  {periodMode === "custom_range" ? (
+                    <span className="truncate">{customRangeLabel}</span>
+                  ) : (
+                    <SelectValue />
+                  )}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="full_year">Calendar year (Day / Week / Month / Year)</SelectItem>
@@ -613,6 +653,33 @@ export default function ConsumerDataDashboardPage() {
                   <SelectItem value="custom_range">Custom range</SelectItem>
                 </SelectContent>
               </Select>
+              {periodMode === "custom_range" && customRangeDropdownOpen && (
+                <div
+                  ref={customRangePanelRef}
+                  className="absolute left-0 top-[calc(100%+8px)] z-50 rounded-md border bg-popover p-2 text-popover-foreground shadow-md"
+                >
+                  <Calendar
+                    mode="range"
+                    selected={customRange}
+                    onSelect={setCustomRange}
+                    numberOfMonths={2}
+                    defaultMonth={customRange?.from}
+                    disabled={
+                      availableDateRange.min && availableDateRange.max
+                        ? {
+                            before: parseISO(availableDateRange.min),
+                            after: parseISO(availableDateRange.max),
+                          }
+                        : undefined
+                    }
+                  />
+                  <div className="flex items-center justify-end border-t px-2 pb-1 pt-2">
+                    <Button size="sm" onClick={() => setCustomRangeDropdownOpen(false)}>
+                      Confirm
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2 min-w-0">
@@ -636,32 +703,6 @@ export default function ConsumerDataDashboardPage() {
                 </SelectContent>
               </Select>
             </div>
-
-            {periodMode === "custom_range" && (
-              <div className="space-y-2 min-w-0 md:col-span-2">
-                <Label>Date range</Label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <input
-                    type="date"
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    value={customStartDate}
-                    min={availableDateRange.min || undefined}
-                    max={availableDateRange.max || undefined}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    disabled={isLoading}
-                  />
-                  <input
-                    type="date"
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    value={customEndDate}
-                    min={availableDateRange.min || undefined}
-                    max={availableDateRange.max || undefined}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-            )}
 
             <div className="space-y-2 min-w-0">
               <Label>Granularity</Label>
@@ -848,6 +889,8 @@ export default function ConsumerDataDashboardPage() {
                     <BarChart
                       key={countsChartKey}
                       data={chartData}
+                      barCategoryGap={useLineForDailyCounts ? "5%" : "20%"}
+                      barGap={useLineForDailyCounts ? 0 : 4}
                       margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
@@ -883,26 +926,24 @@ export default function ConsumerDataDashboardPage() {
                           }
                         }}
                       />
-                      {showLeadsSeries && (
-                        <Bar
-                          dataKey="leadsCnt"
-                          name="Leads count"
-                          fill={COLORS.quotations}
-                          stackId={useLineForDailyCounts ? "counts-daily" : undefined}
-                          minPointSize={useLineForDailyCounts ? 2 : 0}
-                          maxBarSize={useLineForDailyCounts ? 10 : undefined}
-                        />
-                      )}
-                      {showPolicySeries && (
-                        <Bar
-                          dataKey="policyCnt"
-                          name="Policy count"
-                          fill={COLORS.policies}
-                          stackId={useLineForDailyCounts ? "counts-daily" : undefined}
-                          minPointSize={useLineForDailyCounts ? 2 : 0}
-                          maxBarSize={useLineForDailyCounts ? 10 : undefined}
-                        />
-                      )}
+                      <Bar
+                        dataKey="leadsCnt"
+                        name="Leads count"
+                        fill={COLORS.quotations}
+                        fillOpacity={leadsBarOpacity}
+                        opacity={leadsBarOpacity}
+                        minPointSize={useLineForDailyCounts ? 2 : 0}
+                        maxBarSize={useLineForDailyCounts ? 14 : undefined}
+                      />
+                      <Bar
+                        dataKey="policyCnt"
+                        name="Policy count"
+                        fill={COLORS.policies}
+                        fillOpacity={policyBarOpacity}
+                        opacity={policyBarOpacity}
+                        minPointSize={useLineForDailyCounts ? 2 : 0}
+                        maxBarSize={useLineForDailyCounts ? 14 : undefined}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1164,6 +1205,8 @@ export default function ConsumerDataDashboardPage() {
                     <BarChart
                       key={countsChartKey}
                       data={chartData}
+                      barCategoryGap={useLineForDailyCounts ? "5%" : "20%"}
+                      barGap={useLineForDailyCounts ? 0 : 4}
                       margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
@@ -1199,26 +1242,24 @@ export default function ConsumerDataDashboardPage() {
                           }
                         }}
                       />
-                      {showLeadsSeries && (
-                        <Bar
-                          dataKey="leadsCnt"
-                          name="Leads count"
-                          fill={COLORS.quotations}
-                          stackId={useLineForDailyCounts ? "counts-daily" : undefined}
-                          minPointSize={useLineForDailyCounts ? 2 : 0}
-                          maxBarSize={useLineForDailyCounts ? 10 : undefined}
-                        />
-                      )}
-                      {showPolicySeries && (
-                        <Bar
-                          dataKey="policyCnt"
-                          name="Policy count"
-                          fill={COLORS.policies}
-                          stackId={useLineForDailyCounts ? "counts-daily" : undefined}
-                          minPointSize={useLineForDailyCounts ? 2 : 0}
-                          maxBarSize={useLineForDailyCounts ? 10 : undefined}
-                        />
-                      )}
+                      <Bar
+                        dataKey="leadsCnt"
+                        name="Leads count"
+                        fill={COLORS.quotations}
+                        fillOpacity={leadsBarOpacity}
+                        opacity={leadsBarOpacity}
+                        minPointSize={useLineForDailyCounts ? 2 : 0}
+                        maxBarSize={useLineForDailyCounts ? 14 : undefined}
+                      />
+                      <Bar
+                        dataKey="policyCnt"
+                        name="Policy count"
+                        fill={COLORS.policies}
+                        fillOpacity={policyBarOpacity}
+                        opacity={policyBarOpacity}
+                        minPointSize={useLineForDailyCounts ? 2 : 0}
+                        maxBarSize={useLineForDailyCounts ? 14 : undefined}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
