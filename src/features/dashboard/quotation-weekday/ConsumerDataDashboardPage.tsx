@@ -44,8 +44,7 @@ import {
 
 type ConsumerRow = {
   day: string;
-  quotationCnt: number;
-  requestCnt: number;
+  leadsCnt: number;
   policyCnt: number;
   newPolicyCnt: number;
   returningPolicyCnt: number;
@@ -55,14 +54,17 @@ type ConsumerRow = {
 };
 
 type Granularity = "day" | "week" | "month" | "year";
-type PeriodMode = "full_year" | "this_month";
+type PeriodMode = "full_year" | "this_month" | "custom_range";
+type CountSeriesKey = "leadsCnt" | "policyCnt";
+type RevenueSeriesKey = "newCustomerAmount" | "returningCustomerAmount" | "totalAmount";
+type CustomerSeriesKey = "newPolicyCnt" | "returningPolicyCnt";
 
 type SeriesPoint = {
   label: string;
   sortKey: string;
-  quotationCnt: number;
-  requestCnt: number;
+  leadsCnt: number;
   policyCnt: number;
+  conversionRatePct: number;
   newPolicyCnt: number;
   returningPolicyCnt: number;
   totalCustomerCnt: number;
@@ -88,6 +90,34 @@ const COLORS = {
   revenueNew: "hsl(158.1 64.4% 51.6%)",
   revenueReturning: "hsl(336.2 79.2% 57.8%)",
 } as const;
+
+const REVENUE_LEGEND_PAYLOAD = [
+  { value: "Revenue new", type: "square", id: "newCustomerAmount", color: COLORS.revenueNew, dataKey: "newCustomerAmount" },
+  {
+    value: "Revenue returning",
+    type: "square",
+    id: "returningCustomerAmount",
+    color: COLORS.revenueReturning,
+    dataKey: "returningCustomerAmount",
+  },
+  { value: "Revenue total", type: "line", id: "totalAmount", color: COLORS.revenueTotal, dataKey: "totalAmount" },
+] as const;
+
+const COUNTS_LEGEND_PAYLOAD = [
+  { value: "Leads count", type: "square", id: "leadsCnt", color: COLORS.quotations, dataKey: "leadsCnt" },
+  { value: "Policy count", type: "square", id: "policyCnt", color: COLORS.policies, dataKey: "policyCnt" },
+] as const;
+
+const CUSTOMERS_LEGEND_PAYLOAD = [
+  { value: "New customers", type: "square", id: "newPolicyCnt", color: COLORS.newPolicy, dataKey: "newPolicyCnt" },
+  {
+    value: "Returning customers",
+    type: "square",
+    id: "returningPolicyCnt",
+    color: COLORS.returningPolicy,
+    dataKey: "returningPolicyCnt",
+  },
+] as const;
 
 function formatInt(n: number) {
   return n.toLocaleString();
@@ -179,9 +209,9 @@ function aggregateBy(rows: ConsumerRow[], granularity: Granularity): SeriesPoint
       ({
         label,
         sortKey,
-        quotationCnt: 0,
-        requestCnt: 0,
+        leadsCnt: 0,
         policyCnt: 0,
+        conversionRatePct: 0,
         newPolicyCnt: 0,
         returningPolicyCnt: 0,
         totalCustomerCnt: 0,
@@ -190,8 +220,7 @@ function aggregateBy(rows: ConsumerRow[], granularity: Granularity): SeriesPoint
         returningCustomerAmount: 0,
       } satisfies SeriesPoint);
 
-    current.quotationCnt += row.quotationCnt;
-    current.requestCnt += row.requestCnt;
+    current.leadsCnt += row.leadsCnt;
     current.policyCnt += row.policyCnt;
     current.newPolicyCnt += row.newPolicyCnt;
     current.returningPolicyCnt += row.returningPolicyCnt;
@@ -205,6 +234,7 @@ function aggregateBy(rows: ConsumerRow[], granularity: Granularity): SeriesPoint
   return [...buckets.values()]
     .map((point) => ({
       ...point,
+      conversionRatePct: point.leadsCnt > 0 ? (point.policyCnt / point.leadsCnt) * 100 : 0,
       totalCustomerCnt: point.newPolicyCnt + point.returningPolicyCnt,
     }))
     .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
@@ -304,10 +334,22 @@ function ChartDataTable({
 }
 
 export default function ConsumerDataDashboardPage() {
+  const COUNT_SERIES_KEYS: CountSeriesKey[] = ["leadsCnt", "policyCnt"];
+  const REVENUE_SERIES_KEYS: RevenueSeriesKey[] = [
+    "newCustomerAmount",
+    "returningCustomerAmount",
+    "totalAmount",
+  ];
+  const CUSTOMER_SERIES_KEYS: CustomerSeriesKey[] = ["newPolicyCnt", "returningPolicyCnt"];
+
   const [expandedPanel, setExpandedPanel] = useState<"revenue" | "counts" | "newReturning" | null>(null);
   const [expandedTablePanel, setExpandedTablePanel] = useState<
     "revenue" | "counts" | "newReturning" | null
   >(null);
+  const [activeCountSeries, setActiveCountSeries] = useState<CountSeriesKey[]>(COUNT_SERIES_KEYS);
+  const [activeRevenueSeries, setActiveRevenueSeries] = useState<RevenueSeriesKey[]>(REVENUE_SERIES_KEYS);
+  const [activeCustomerSeries, setActiveCustomerSeries] =
+    useState<CustomerSeriesKey[]>(CUSTOMER_SERIES_KEYS);
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["consumer-data-dashboard", TABLE_NAME],
     queryFn: async () => {
@@ -319,7 +361,7 @@ export default function ConsumerDataDashboardPage() {
         const { data, error } = await (supabase as any)
           .from(TABLE_NAME)
           .select(
-            "date,quotation_cnt,request_cnt,policy_cnt,new_policy,returning_policy,total_amount,new_customer_amount,returning_customer_amount"
+            "date,leads_cnt,policy_cnt,new_policy,returning_policy,total_amount,new_customer_amount,returning_customer_amount"
           )
           .order("date", { ascending: true })
           .range(from, to);
@@ -335,8 +377,7 @@ export default function ConsumerDataDashboardPage() {
           const day = String(r.date ?? "").trim().slice(0, 10);
           const row = {
             day,
-            quotationCnt: Number(r.quotation_cnt ?? 0),
-            requestCnt: Number(r.request_cnt ?? 0),
+            leadsCnt: Number(r.leads_cnt ?? 0),
             policyCnt: Number(r.policy_cnt ?? 0),
             newPolicyCnt: Number(r.new_policy ?? 0),
             returningPolicyCnt: Number(r.returning_policy ?? 0),
@@ -353,9 +394,19 @@ export default function ConsumerDataDashboardPage() {
 
   const rows = data ?? [];
   const yearOptions = useMemo(() => yearOptionsForSelect(rows), [rows]);
+  const availableDateRange = useMemo(() => {
+    if (rows.length === 0) return { min: "", max: "" };
+    const sortedDays = rows.map((r) => r.day).sort();
+    return {
+      min: sortedDays[0] ?? "",
+      max: sortedDays[sortedDays.length - 1] ?? "",
+    };
+  }, [rows]);
   const [selectedYear, setSelectedYear] = useState(String(DEFAULT_YEAR));
   const [granularity, setGranularity] = useState<Granularity>("month");
   const [periodMode, setPeriodMode] = useState<PeriodMode>("full_year");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
 
   const yearNum = Number.parseInt(selectedYear, 10);
 
@@ -366,6 +417,14 @@ export default function ConsumerDataDashboardPage() {
       const end = format(endOfMonth(now), "yyyy-MM-dd");
       return rows.filter((r) => r.day >= start && r.day <= end);
     }
+    if (periodMode === "custom_range") {
+      const start = customStartDate || availableDateRange.min;
+      const end = customEndDate || availableDateRange.max;
+      if (!start || !end) return [];
+      const from = start <= end ? start : end;
+      const to = start <= end ? end : start;
+      return rows.filter((r) => r.day >= from && r.day <= to);
+    }
     if (!Number.isFinite(yearNum)) return [];
     if (granularity === "year") {
       return rows.filter((r) => {
@@ -374,11 +433,11 @@ export default function ConsumerDataDashboardPage() {
       });
     }
     return rows.filter((r) => parseISO(r.day).getFullYear() === yearNum);
-  }, [rows, yearNum, periodMode, granularity]);
+  }, [rows, yearNum, periodMode, granularity, customStartDate, customEndDate, availableDateRange]);
 
   const effectiveGranularity = useMemo<Granularity>(() => {
-    if (periodMode !== "this_month") return granularity;
-    // In MTD mode we support day/week switching only.
+    if (periodMode === "full_year") return granularity;
+    // In MTD and custom range mode we support day/week switching only.
     if (granularity === "day" || granularity === "week") return granularity;
     return "week";
   }, [periodMode, granularity]);
@@ -388,11 +447,110 @@ export default function ConsumerDataDashboardPage() {
     [filteredRows, effectiveGranularity]
   );
 
+  const validActiveCountSeries = useMemo(
+    () => activeCountSeries.filter((k): k is CountSeriesKey => COUNT_SERIES_KEYS.includes(k)),
+    [activeCountSeries]
+  );
+  const effectiveActiveCountSeries =
+    validActiveCountSeries.length > 0 ? validActiveCountSeries : COUNT_SERIES_KEYS;
+
+  const countsYAxisMax = useMemo(() => {
+    const activeKeys: CountSeriesKey[] = effectiveActiveCountSeries;
+
+    let maxVal = 0;
+    for (const row of chartData) {
+      for (const key of activeKeys) {
+        const value = Number(row[key] ?? 0);
+        if (value > maxVal) maxVal = value;
+      }
+    }
+
+    if (maxVal <= 0) return 10;
+    return Math.ceil(maxVal * 1.1);
+  }, [chartData, effectiveActiveCountSeries]);
+
+  const validActiveRevenueSeries = useMemo(
+    () => activeRevenueSeries.filter((k): k is RevenueSeriesKey => REVENUE_SERIES_KEYS.includes(k)),
+    [activeRevenueSeries]
+  );
+  const effectiveActiveRevenueSeries =
+    validActiveRevenueSeries.length > 0 ? validActiveRevenueSeries : REVENUE_SERIES_KEYS;
+
+  const revenueYAxisMax = useMemo(() => {
+    const activeKeys: RevenueSeriesKey[] = effectiveActiveRevenueSeries;
+
+    let maxVal = 0;
+    for (const row of chartData) {
+      for (const key of activeKeys) {
+        const value = Number(row[key] ?? 0);
+        if (value > maxVal) maxVal = value;
+      }
+    }
+
+    if (maxVal <= 0) return 10;
+    return Math.ceil(maxVal * 1.1);
+  }, [chartData, effectiveActiveRevenueSeries]);
+
+  const validActiveCustomerSeries = useMemo(
+    () => activeCustomerSeries.filter((k): k is CustomerSeriesKey => CUSTOMER_SERIES_KEYS.includes(k)),
+    [activeCustomerSeries]
+  );
+  const effectiveActiveCustomerSeries =
+    validActiveCustomerSeries.length > 0 ? validActiveCustomerSeries : CUSTOMER_SERIES_KEYS;
+
+  const customerYAxisMax = useMemo(() => {
+    const activeKeys: CustomerSeriesKey[] = effectiveActiveCustomerSeries;
+
+    let maxVal = 0;
+    for (const row of chartData) {
+      for (const key of activeKeys) {
+        const value = Number(row[key] ?? 0);
+        if (value > maxVal) maxVal = value;
+      }
+    }
+
+    if (maxVal <= 0) return 10;
+    return Math.ceil(maxVal * 1.1);
+  }, [chartData, effectiveActiveCustomerSeries]);
+
+  const handleCountLegendClick = (key: CountSeriesKey) => {
+    setActiveCountSeries((prev) => {
+      const current = prev.length > 0 ? prev : COUNT_SERIES_KEYS;
+      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
+      return next.length > 0 ? next : COUNT_SERIES_KEYS;
+    });
+  };
+  const handleRevenueLegendClick = (key: RevenueSeriesKey) => {
+    setActiveRevenueSeries((prev) => {
+      const current = prev.length > 0 ? prev : REVENUE_SERIES_KEYS;
+      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
+      return next.length > 0 ? next : REVENUE_SERIES_KEYS;
+    });
+  };
+  const handleCustomerLegendClick = (key: CustomerSeriesKey) => {
+    setActiveCustomerSeries((prev) => {
+      const current = prev.length > 0 ? prev : CUSTOMER_SERIES_KEYS;
+      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
+      return next.length > 0 ? next : CUSTOMER_SERIES_KEYS;
+    });
+  };
+
+  const showLeadsSeries = effectiveActiveCountSeries.includes("leadsCnt");
+  const showPolicySeries = effectiveActiveCountSeries.includes("policyCnt");
+  const showRevenueNewSeries = effectiveActiveRevenueSeries.includes("newCustomerAmount");
+  const showRevenueReturningSeries = effectiveActiveRevenueSeries.includes("returningCustomerAmount");
+  const showRevenueTotalSeries = effectiveActiveRevenueSeries.includes("totalAmount");
+  const showNewCustomerSeries = effectiveActiveCustomerSeries.includes("newPolicyCnt");
+  const showReturningCustomerSeries = effectiveActiveCustomerSeries.includes("returningPolicyCnt");
+  const useLineForDailyCounts = effectiveGranularity === "day";
+  const countsChartKey = `counts:${effectiveActiveCountSeries.slice().sort().join("|")}`;
+  const revenueChartKey = `revenue:${effectiveActiveRevenueSeries.slice().sort().join("|")}`;
+  const customersChartKey = `customers:${effectiveActiveCustomerSeries.slice().sort().join("|")}`;
+
   const summary = useMemo(() => {
     return filteredRows.reduce(
       (acc, row) => {
-        acc.quotationCnt += row.quotationCnt;
-        acc.requestCnt += row.requestCnt;
+        acc.leadsCnt += row.leadsCnt;
         acc.policyCnt += row.policyCnt;
         acc.newPolicyCnt += row.newPolicyCnt;
         acc.returningPolicyCnt += row.returningPolicyCnt;
@@ -400,13 +558,12 @@ export default function ConsumerDataDashboardPage() {
         return acc;
       },
       {
-        quotationCnt: 0,
-        requestCnt: 0,
+        leadsCnt: 0,
         policyCnt: 0,
+        conversionRatePct: 0,
         newPolicyCnt: 0,
         returningPolicyCnt: 0,
         totalAmount: 0,
-        conversionRatePct: 0,
       }
     );
   }, [filteredRows]);
@@ -414,6 +571,7 @@ export default function ConsumerDataDashboardPage() {
   const summaryWithConversion = useMemo(
     () => ({
       ...summary,
+      conversionRatePct: summary.leadsCnt > 0 ? (summary.policyCnt / summary.leadsCnt) * 100 : 0,
       newCustomerSharePct: summary.policyCnt > 0 ? (summary.newPolicyCnt / summary.policyCnt) * 100 : 0,
       returningCustomerSharePct:
         summary.policyCnt > 0 ? (summary.returningPolicyCnt / summary.policyCnt) * 100 : 0,
@@ -452,6 +610,7 @@ export default function ConsumerDataDashboardPage() {
                 <SelectContent>
                   <SelectItem value="full_year">Calendar year (Day / Week / Month / Year)</SelectItem>
                   <SelectItem value="this_month">This month (MTD)</SelectItem>
+                  <SelectItem value="custom_range">Custom range</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -477,6 +636,32 @@ export default function ConsumerDataDashboardPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {periodMode === "custom_range" && (
+              <div className="space-y-2 min-w-0 md:col-span-2">
+                <Label>Date range</Label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <input
+                    type="date"
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={customStartDate}
+                    min={availableDateRange.min || undefined}
+                    max={availableDateRange.max || undefined}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  <input
+                    type="date"
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={customEndDate}
+                    min={availableDateRange.min || undefined}
+                    max={availableDateRange.max || undefined}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2 min-w-0">
               <Label>Granularity</Label>
@@ -542,37 +727,76 @@ export default function ConsumerDataDashboardPage() {
               ) : (
                 <div className={`${IN_CARD_CHART_AREA_CLASS} w-full min-w-0`}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 12, right: 20, left: 20, bottom: 16 }}>
+                    <BarChart
+                      key={revenueChartKey}
+                      data={chartData}
+                      margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} />
                       <YAxis
                         width={90}
                         tickLine={false}
                         axisLine={false}
+                        domain={[0, revenueYAxisMax]}
                         tickFormatter={(v) => formatKAxis(Number(v), { currency: true })}
                       />
                       <Tooltip formatter={formatTooltipValue} />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar
-                        dataKey="newCustomerAmount"
-                        stackId="revenue"
-                        name="Revenue new"
-                        fill={COLORS.revenueNew}
+                      <Legend
+                        payload={REVENUE_LEGEND_PAYLOAD as any}
+                        wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
+                        formatter={(value, entry) => {
+                          const key = String(entry.dataKey ?? "") as RevenueSeriesKey;
+                          const isActive = effectiveActiveRevenueSeries.includes(key);
+                          return (
+                            <span
+                              style={{
+                                color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                              }}
+                            >
+                              {String(value)}
+                            </span>
+                          );
+                        }}
+                        onClick={(payload) => {
+                          const key = String(payload?.dataKey ?? "") as RevenueSeriesKey;
+                          if (
+                            key === "newCustomerAmount" ||
+                            key === "returningCustomerAmount" ||
+                            key === "totalAmount"
+                          ) {
+                            handleRevenueLegendClick(key);
+                          }
+                        }}
                       />
-                      <Bar
-                        dataKey="returningCustomerAmount"
-                        stackId="revenue"
-                        name="Revenue returning"
-                        fill={COLORS.revenueReturning}
-                      />
-                      <Line
-                        dataKey="totalAmount"
-                        name="Revenue total"
-                        type="monotone"
-                        stroke={COLORS.revenueTotal}
-                        strokeWidth={2.5}
-                        dot={{ r: 3, fill: COLORS.revenueTotal }}
-                      />
+                      {showRevenueNewSeries && (
+                        <Bar
+                          dataKey="newCustomerAmount"
+                          stackId="revenue"
+                          name="Revenue new"
+                          fill={COLORS.revenueNew}
+                          fillOpacity={1}
+                        />
+                      )}
+                      {showRevenueReturningSeries && (
+                        <Bar
+                          dataKey="returningCustomerAmount"
+                          stackId="revenue"
+                          name="Revenue returning"
+                          fill={COLORS.revenueReturning}
+                          fillOpacity={1}
+                        />
+                      )}
+                      {showRevenueTotalSeries && (
+                        <Line
+                          dataKey="totalAmount"
+                          name="Revenue total"
+                          type="monotone"
+                          stroke={COLORS.revenueTotal}
+                          strokeWidth={2.5}
+                          dot={{ r: 3, fill: COLORS.revenueTotal }}
+                        />
+                      )}
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -595,7 +819,7 @@ export default function ConsumerDataDashboardPage() {
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <CardTitle>Quotation / Request / Policy</CardTitle>
+                  <CardTitle>Leads / Policy</CardTitle>
                   <CardDescription />
                 </div>
                 <Button
@@ -621,20 +845,64 @@ export default function ConsumerDataDashboardPage() {
               ) : (
                 <div className={`${IN_CARD_CHART_AREA_CLASS} w-full min-w-0`}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 12, right: 20, left: 20, bottom: 16 }}>
+                    <BarChart
+                      key={countsChartKey}
+                      data={chartData}
+                      margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} />
                       <YAxis
                         width={72}
                         tickLine={false}
                         axisLine={false}
+                        domain={[0, countsYAxisMax]}
                         tickFormatter={(v) => formatKAxis(Number(v))}
                       />
                       <Tooltip formatter={formatTooltipValue} />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="quotationCnt" name="Quotation count" fill={COLORS.quotations} />
-                      <Bar dataKey="requestCnt" name="Request count" fill={COLORS.requests} />
-                      <Bar dataKey="policyCnt" name="Policy count" fill={COLORS.policies} />
+                      <Legend
+                        payload={COUNTS_LEGEND_PAYLOAD as any}
+                        wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
+                        formatter={(value, entry) => {
+                          const key = String(entry.dataKey ?? "") as CountSeriesKey;
+                          const isActive = effectiveActiveCountSeries.includes(key);
+                          return (
+                            <span
+                              style={{
+                                color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                              }}
+                            >
+                              {String(value)}
+                            </span>
+                          );
+                        }}
+                        onClick={(payload) => {
+                          const key = String(payload?.dataKey ?? "") as CountSeriesKey;
+                          if (key === "leadsCnt" || key === "policyCnt") {
+                            handleCountLegendClick(key);
+                          }
+                        }}
+                      />
+                      {showLeadsSeries && (
+                        <Bar
+                          dataKey="leadsCnt"
+                          name="Leads count"
+                          fill={COLORS.quotations}
+                          stackId={useLineForDailyCounts ? "counts-daily" : undefined}
+                          minPointSize={useLineForDailyCounts ? 2 : 0}
+                          maxBarSize={useLineForDailyCounts ? 10 : undefined}
+                        />
+                      )}
+                      {showPolicySeries && (
+                        <Bar
+                          dataKey="policyCnt"
+                          name="Policy count"
+                          fill={COLORS.policies}
+                          stackId={useLineForDailyCounts ? "counts-daily" : undefined}
+                          minPointSize={useLineForDailyCounts ? 2 : 0}
+                          maxBarSize={useLineForDailyCounts ? 10 : undefined}
+                        />
+                      )}
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -645,9 +913,9 @@ export default function ConsumerDataDashboardPage() {
                   title="Counts"
                   onExpandTable={() => setExpandedTablePanel("counts")}
                   columns={[
-                    { key: "quotationCnt", label: "Quotation count", kind: "int" },
-                    { key: "requestCnt", label: "Request count", kind: "int" },
+                    { key: "leadsCnt", label: "Leads count", kind: "int" },
                     { key: "policyCnt", label: "Policy count", kind: "int" },
+                    { key: "conversionRatePct", label: "Conversion rate", kind: "pct" },
                   ]}
                 />
               )}
@@ -663,9 +931,12 @@ export default function ConsumerDataDashboardPage() {
             </CardHeader>
             <CardContent className="flex-1 overflow-auto">
               <div className="space-y-2">
-                <SummaryRow title="Quotations" value={formatInt(summaryWithConversion.quotationCnt)} />
-                <SummaryRow title="Requests" value={formatInt(summaryWithConversion.requestCnt)} />
+                <SummaryRow title="Leads" value={formatInt(summaryWithConversion.leadsCnt)} />
                 <SummaryRow title="Policies" value={formatInt(summaryWithConversion.policyCnt)} />
+                <SummaryRow
+                  title="Conversion rate (Policy/Leads)"
+                  value={`${summaryWithConversion.conversionRatePct.toFixed(2)}%`}
+                />
                 <SummaryRow title="New customers" value={formatInt(summaryWithConversion.newPolicyCnt)} />
                 <SummaryRow title="Returning customers" value={formatInt(summaryWithConversion.returningPolicyCnt)} />
                 <SummaryRow
@@ -707,24 +978,62 @@ export default function ConsumerDataDashboardPage() {
               ) : (
                 <div className={`${IN_CARD_CHART_AREA_CLASS} w-full min-w-0`}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 12, right: 20, left: 20, bottom: 16 }}>
+                    <BarChart
+                      key={customersChartKey}
+                      data={chartData}
+                      margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} />
                       <YAxis
                         width={72}
                         tickLine={false}
                         axisLine={false}
+                        domain={[0, customerYAxisMax]}
                         tickFormatter={(v) => formatKAxis(Number(v))}
                       />
                       <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="newPolicyCnt" stackId="customers" name="New customers" fill={COLORS.newPolicy} />
-                      <Bar
-                        dataKey="returningPolicyCnt"
-                        stackId="customers"
-                        name="Returning customers"
-                        fill={COLORS.returningPolicy}
+                      <Legend
+                        payload={CUSTOMERS_LEGEND_PAYLOAD as any}
+                        wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
+                        formatter={(value, entry) => {
+                          const key = String(entry.dataKey ?? "") as CustomerSeriesKey;
+                          const isActive = effectiveActiveCustomerSeries.includes(key);
+                          return (
+                            <span
+                              style={{
+                                color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                              }}
+                            >
+                              {String(value)}
+                            </span>
+                          );
+                        }}
+                        onClick={(payload) => {
+                          const key = String(payload?.dataKey ?? "") as CustomerSeriesKey;
+                          if (key === "newPolicyCnt" || key === "returningPolicyCnt") {
+                            handleCustomerLegendClick(key);
+                          }
+                        }}
                       />
+                      {showNewCustomerSeries && (
+                        <Bar
+                          dataKey="newPolicyCnt"
+                          stackId="customers"
+                          name="New customers"
+                          fill={COLORS.newPolicy}
+                          fillOpacity={1}
+                        />
+                      )}
+                      {showReturningCustomerSeries && (
+                        <Bar
+                          dataKey="returningPolicyCnt"
+                          stackId="customers"
+                          name="Returning customers"
+                          fill={COLORS.returningPolicy}
+                          fillOpacity={1}
+                        />
+                      )}
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -753,7 +1062,7 @@ export default function ConsumerDataDashboardPage() {
                 {expandedPanel === "revenue"
                   ? "Revenue (Total / New / Returning)"
                   : expandedPanel === "counts"
-                  ? "Quotation / Request / Policy"
+                  ? "Leads / Policy"
                   : "New vs Returning Customers"}
               </DialogTitle>
               <DialogDescription>Expanded chart and data table view.</DialogDescription>
@@ -763,37 +1072,76 @@ export default function ConsumerDataDashboardPage() {
               <>
                 <div className="h-[65vh] w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 12, right: 20, left: 20, bottom: 16 }}>
+                    <BarChart
+                      key={revenueChartKey}
+                      data={chartData}
+                      margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} />
                       <YAxis
                         width={90}
                         tickLine={false}
                         axisLine={false}
+                        domain={[0, revenueYAxisMax]}
                         tickFormatter={(v) => formatKAxis(Number(v), { currency: true })}
                       />
                       <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar
-                        dataKey="newCustomerAmount"
-                        stackId="revenue"
-                        name="Revenue new"
-                        fill={COLORS.revenueNew}
+                      <Legend
+                        payload={REVENUE_LEGEND_PAYLOAD as any}
+                        wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
+                        formatter={(value, entry) => {
+                          const key = String(entry.dataKey ?? "") as RevenueSeriesKey;
+                          const isActive = effectiveActiveRevenueSeries.includes(key);
+                          return (
+                            <span
+                              style={{
+                                color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                              }}
+                            >
+                              {String(value)}
+                            </span>
+                          );
+                        }}
+                        onClick={(payload) => {
+                          const key = String(payload?.dataKey ?? "") as RevenueSeriesKey;
+                          if (
+                            key === "newCustomerAmount" ||
+                            key === "returningCustomerAmount" ||
+                            key === "totalAmount"
+                          ) {
+                            handleRevenueLegendClick(key);
+                          }
+                        }}
                       />
-                      <Bar
-                        dataKey="returningCustomerAmount"
-                        stackId="revenue"
-                        name="Revenue returning"
-                        fill={COLORS.revenueReturning}
-                      />
-                      <Line
-                        dataKey="totalAmount"
-                        name="Revenue total"
-                        type="monotone"
-                        stroke={COLORS.revenueTotal}
-                        strokeWidth={2.5}
-                        dot={{ r: 3, fill: COLORS.revenueTotal }}
-                      />
+                      {showRevenueNewSeries && (
+                        <Bar
+                          dataKey="newCustomerAmount"
+                          stackId="revenue"
+                          name="Revenue new"
+                          fill={COLORS.revenueNew}
+                          fillOpacity={1}
+                        />
+                      )}
+                      {showRevenueReturningSeries && (
+                        <Bar
+                          dataKey="returningCustomerAmount"
+                          stackId="revenue"
+                          name="Revenue returning"
+                          fill={COLORS.revenueReturning}
+                          fillOpacity={1}
+                        />
+                      )}
+                      {showRevenueTotalSeries && (
+                        <Line
+                          dataKey="totalAmount"
+                          name="Revenue total"
+                          type="monotone"
+                          stroke={COLORS.revenueTotal}
+                          strokeWidth={2.5}
+                          dot={{ r: 3, fill: COLORS.revenueTotal }}
+                        />
+                      )}
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -813,20 +1161,64 @@ export default function ConsumerDataDashboardPage() {
               <>
                 <div className="h-[65vh] w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 12, right: 20, left: 20, bottom: 16 }}>
+                    <BarChart
+                      key={countsChartKey}
+                      data={chartData}
+                      margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} />
                       <YAxis
                         width={72}
                         tickLine={false}
                         axisLine={false}
+                        domain={[0, countsYAxisMax]}
                         tickFormatter={(v) => formatKAxis(Number(v))}
                       />
-                      <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="quotationCnt" name="Quotation count" fill={COLORS.quotations} />
-                      <Bar dataKey="requestCnt" name="Request count" fill={COLORS.requests} />
-                      <Bar dataKey="policyCnt" name="Policy count" fill={COLORS.policies} />
+                      <Tooltip formatter={formatTooltipValue} />
+                      <Legend
+                        payload={COUNTS_LEGEND_PAYLOAD as any}
+                        wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
+                        formatter={(value, entry) => {
+                          const key = String(entry.dataKey ?? "") as CountSeriesKey;
+                          const isActive = effectiveActiveCountSeries.includes(key);
+                          return (
+                            <span
+                              style={{
+                                color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                              }}
+                            >
+                              {String(value)}
+                            </span>
+                          );
+                        }}
+                        onClick={(payload) => {
+                          const key = String(payload?.dataKey ?? "") as CountSeriesKey;
+                          if (key === "leadsCnt" || key === "policyCnt") {
+                            handleCountLegendClick(key);
+                          }
+                        }}
+                      />
+                      {showLeadsSeries && (
+                        <Bar
+                          dataKey="leadsCnt"
+                          name="Leads count"
+                          fill={COLORS.quotations}
+                          stackId={useLineForDailyCounts ? "counts-daily" : undefined}
+                          minPointSize={useLineForDailyCounts ? 2 : 0}
+                          maxBarSize={useLineForDailyCounts ? 10 : undefined}
+                        />
+                      )}
+                      {showPolicySeries && (
+                        <Bar
+                          dataKey="policyCnt"
+                          name="Policy count"
+                          fill={COLORS.policies}
+                          stackId={useLineForDailyCounts ? "counts-daily" : undefined}
+                          minPointSize={useLineForDailyCounts ? 2 : 0}
+                          maxBarSize={useLineForDailyCounts ? 10 : undefined}
+                        />
+                      )}
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -834,9 +1226,9 @@ export default function ConsumerDataDashboardPage() {
                   rows={chartData}
                   title="Counts"
                   columns={[
-                    { key: "quotationCnt", label: "Quotation count", kind: "int" },
-                    { key: "requestCnt", label: "Request count", kind: "int" },
+                    { key: "leadsCnt", label: "Leads count", kind: "int" },
                     { key: "policyCnt", label: "Policy count", kind: "int" },
+                    { key: "conversionRatePct", label: "Conversion rate", kind: "pct" },
                   ]}
                 />
               </>
@@ -846,24 +1238,62 @@ export default function ConsumerDataDashboardPage() {
               <>
                 <div className="h-[65vh] w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 12, right: 20, left: 20, bottom: 16 }}>
+                    <BarChart
+                      key={customersChartKey}
+                      data={chartData}
+                      margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} />
                       <YAxis
                         width={72}
                         tickLine={false}
                         axisLine={false}
+                        domain={[0, customerYAxisMax]}
                         tickFormatter={(v) => formatKAxis(Number(v))}
                       />
                       <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="newPolicyCnt" stackId="customers" name="New customers" fill={COLORS.newPolicy} />
-                      <Bar
-                        dataKey="returningPolicyCnt"
-                        stackId="customers"
-                        name="Returning customers"
-                        fill={COLORS.returningPolicy}
+                      <Legend
+                        payload={CUSTOMERS_LEGEND_PAYLOAD as any}
+                        wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
+                        formatter={(value, entry) => {
+                          const key = String(entry.dataKey ?? "") as CustomerSeriesKey;
+                          const isActive = effectiveActiveCustomerSeries.includes(key);
+                          return (
+                            <span
+                              style={{
+                                color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                              }}
+                            >
+                              {String(value)}
+                            </span>
+                          );
+                        }}
+                        onClick={(payload) => {
+                          const key = String(payload?.dataKey ?? "") as CustomerSeriesKey;
+                          if (key === "newPolicyCnt" || key === "returningPolicyCnt") {
+                            handleCustomerLegendClick(key);
+                          }
+                        }}
                       />
+                      {showNewCustomerSeries && (
+                        <Bar
+                          dataKey="newPolicyCnt"
+                          stackId="customers"
+                          name="New customers"
+                          fill={COLORS.newPolicy}
+                          fillOpacity={1}
+                        />
+                      )}
+                      {showReturningCustomerSeries && (
+                        <Bar
+                          dataKey="returningPolicyCnt"
+                          stackId="customers"
+                          name="Returning customers"
+                          fill={COLORS.returningPolicy}
+                          fillOpacity={1}
+                        />
+                      )}
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -916,8 +1346,7 @@ export default function ConsumerDataDashboardPage() {
                 title="Counts"
                 maxHeightClassName="max-h-[72vh]"
                 columns={[
-                  { key: "quotationCnt", label: "Quotation count", kind: "int" },
-                  { key: "requestCnt", label: "Request count", kind: "int" },
+                  { key: "leadsCnt", label: "Leads count", kind: "int" },
                   { key: "policyCnt", label: "Policy count", kind: "int" },
                   { key: "conversionRatePct", label: "Conversion rate", kind: "pct" },
                 ]}
