@@ -25,6 +25,9 @@ const DatabasePage = React.lazy(() => import("@/features/database/presentation/D
 const ProfilePage = React.lazy(() => import("@/features/profile/presentation/ProfilePage"));
 const MilestonesPage = React.lazy(() => import("@/features/milestones/presentation/MilestonesPage"));
 const NotFoundPage = React.lazy(() => import("@/features/not-found/presentation/NotFoundPage"));
+const ConsumerDataDashboardPage = React.lazy(
+  () => import("@/features/dashboard/quotation-weekday/ConsumerDataDashboardPage")
+);
 
 const SIDEBAR_WIDTH = 110;
 const PROJECT_PANEL_WIDTH = 220;
@@ -59,6 +62,7 @@ function AppLayout() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/report" element={<ReportPage />} />
+              <Route path="/dashboard/consumer-data" element={<ConsumerDataDashboardPage />} />
               <Route path="/milestones" element={<Navigate to={`/milestones/${DEFAULT_MILESTONE_BOARD_ID}`} replace />} />
               <Route path="/milestones/:boardId" element={<MilestonesPage />} />
               <Route path="/database" element={<DatabasePage />} />

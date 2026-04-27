@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   Shield,
+  BarChart3,
 } from "lucide-react";
 import { FinishLineIcon } from "@/components/icons/FinishLineIcon";
 import { cn } from "@/lib/utils";
@@ -94,6 +95,8 @@ export function Sidebar() {
   const isDatabaseIssuance = () => location.pathname === "/database" && (searchParams.get("view") === "issuance" || !searchParams.get("view"));
   const isWorkflowActive = (workflowId: string) =>
     location.pathname.startsWith(`/workflows/${workflowId}`);
+  const isDashboardSuite = () =>
+    location.pathname.startsWith("/dashboard/");
   const isMilestonesSuite = () =>
     location.pathname.startsWith("/milestones") ||
     location.pathname === "/progress" ||
@@ -121,6 +124,18 @@ export function Sidebar() {
             icon={FinishLineIcon}
             label="Milestones"
             isActive={isMilestonesSuite()}
+          />
+        </Section>
+
+        <div className="mx-2 my-1 border-t border-sidebar-border" />
+
+        <Section label="Dashboard" icon={BarChart3} defaultOpen={isDashboardSuite()}>
+          <NavItem
+            to="/dashboard/consumer-data"
+            icon={BarChart3}
+            label="consumer data"
+            isActive={isActive("/dashboard/consumer-data")}
+            indent
           />
         </Section>
 
