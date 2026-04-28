@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
   ResponsiveContainer,
@@ -58,6 +59,7 @@ type ConsumerRow = {
 type Granularity = "day" | "week" | "month" | "year";
 type PeriodMode = "full_year" | "this_month" | "custom_range";
 type CountSeriesKey = "leadsCnt" | "policyCnt";
+type CountLegendSeriesKey = CountSeriesKey | "conversionRatePct";
 type RevenueSeriesKey = "newCustomerAmount" | "returningCustomerAmount" | "totalAmount";
 type CustomerSeriesKey = "newPolicyCnt" | "returningPolicyCnt";
 
@@ -108,6 +110,13 @@ const REVENUE_LEGEND_PAYLOAD = [
 const COUNTS_LEGEND_PAYLOAD = [
   { value: "Leads count", type: "square", id: "leadsCnt", color: COLORS.quotations, dataKey: "leadsCnt" },
   { value: "Policy count", type: "square", id: "policyCnt", color: COLORS.policies, dataKey: "policyCnt" },
+  {
+    value: "Conversion rate",
+    type: "line",
+    id: "conversionRatePct",
+    color: COLORS.requests,
+    dataKey: "conversionRatePct",
+  },
 ] as const;
 
 const CUSTOMERS_LEGEND_PAYLOAD = [
@@ -768,11 +777,6 @@ export default function ConsumerDataDashboardPage() {
                   <Maximize2 className="h-4 w-4" />
                   Expand
                 </Button>
-                {isRevenueFiltered && (
-                  <Button variant="outline" size="sm" className="h-8 px-3" onClick={resetRevenueSeries}>
-                    Show all
-                  </Button>
-                )}
               </div>
             </CardHeader>
             <CardContent className="p-0 flex-1 flex flex-col">
@@ -804,30 +808,50 @@ export default function ConsumerDataDashboardPage() {
                       <Tooltip formatter={formatTooltipValue} />
                       <Legend
                         payload={REVENUE_LEGEND_PAYLOAD as any}
-                        wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
-                        formatter={(value, entry) => {
-                          const key = String(entry.dataKey ?? "") as RevenueSeriesKey;
-                          const isActive = effectiveActiveRevenueSeries.includes(key);
-                          return (
-                            <span
-                              style={{
-                                color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                              }}
-                            >
-                              {String(value)}
-                            </span>
-                          );
-                        }}
-                        onClick={(payload) => {
-                          const key = String(payload?.dataKey ?? "") as RevenueSeriesKey;
-                          if (
-                            key === "newCustomerAmount" ||
-                            key === "returningCustomerAmount" ||
-                            key === "totalAmount"
-                          ) {
-                            handleRevenueLegendClick(key);
-                          }
-                        }}
+                        content={({ payload }) => (
+                          <div className="relative flex items-center justify-center gap-2 px-2 text-xs">
+                            <div className="flex flex-wrap items-center justify-center gap-4">
+                              {(payload ?? []).map((entry: any) => {
+                                const key = String(entry?.dataKey ?? "") as RevenueSeriesKey;
+                                const isActive = effectiveActiveRevenueSeries.includes(key);
+                                const isLine = String(entry?.type ?? "") === "line";
+                                return (
+                                  <button
+                                    key={`${key}-${String(entry?.value ?? "")}`}
+                                    type="button"
+                                    className="inline-flex items-center gap-1.5"
+                                    onClick={() => handleRevenueLegendClick(key)}
+                                  >
+                                    {isLine ? (
+                                      <span
+                                        className="inline-block h-0.5 w-3 rounded"
+                                        style={{ backgroundColor: String(entry?.color ?? "#8884d8") }}
+                                      />
+                                    ) : (
+                                      <span
+                                        className="inline-block h-2.5 w-2.5 rounded-sm"
+                                        style={{ backgroundColor: String(entry?.color ?? "#8884d8") }}
+                                      />
+                                    )}
+                                    <span style={{ color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))" }}>
+                                      {String(entry?.value ?? "")}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {isRevenueFiltered && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="absolute right-0 h-7 px-2.5"
+                                onClick={resetRevenueSeries}
+                              >
+                                Reset
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       />
                       {showRevenueNewSeries && (
                         <Bar
@@ -894,11 +918,6 @@ export default function ConsumerDataDashboardPage() {
                   <Maximize2 className="h-4 w-4" />
                   Expand
                 </Button>
-                {isCountsFiltered && (
-                  <Button variant="outline" size="sm" className="h-8 px-3" onClick={resetCountsSeries}>
-                    Show all
-                  </Button>
-                )}
               </div>
             </CardHeader>
             <CardContent className="p-0 flex-1 flex flex-col">
@@ -913,7 +932,7 @@ export default function ConsumerDataDashboardPage() {
               ) : (
                 <div className={`${IN_CARD_CHART_AREA_CLASS} w-full min-w-0`}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
+                    <ComposedChart
                       key={countsChartKey}
                       data={countsChartData}
                       barCategoryGap={useLineForDailyCounts ? "8%" : "20%"}
@@ -923,37 +942,74 @@ export default function ConsumerDataDashboardPage() {
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} />
                       <YAxis
+                        yAxisId="left"
                         width={72}
                         tickLine={false}
                         axisLine={false}
                         domain={[0, countsYAxisMax]}
                         tickFormatter={(v) => formatKAxis(Number(v))}
                       />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        width={52}
+                        tickLine={false}
+                        axisLine={false}
+                        domain={[0, "auto"]}
+                        tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
+                      />
                       <Tooltip formatter={formatTooltipValue} />
                       <Legend
                         payload={COUNTS_LEGEND_PAYLOAD as any}
-                        wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
-                        formatter={(value, entry) => {
-                          const key = String(entry.dataKey ?? "") as CountSeriesKey;
-                          const isActive = effectiveActiveCountSeries.includes(key);
-                          return (
-                            <span
-                              style={{
-                                color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                              }}
-                            >
-                              {String(value)}
-                            </span>
-                          );
-                        }}
-                        onClick={(payload) => {
-                          const key = getCountLegendKey(payload);
-                          if (key) {
-                            handleCountLegendClick(key);
-                          }
-                        }}
+                        content={({ payload }) => (
+                          <div className="relative flex items-center justify-center gap-2 px-2 text-xs">
+                            <div className="flex flex-wrap items-center justify-center gap-4">
+                              {(payload ?? []).map((entry: any) => {
+                                const key = String(entry?.dataKey ?? "") as CountLegendSeriesKey;
+                                const isClickable = key === "leadsCnt" || key === "policyCnt";
+                                const isActive =
+                                  key === "conversionRatePct" || effectiveActiveCountSeries.includes(key);
+                                const isLine = String(entry?.type ?? "") === "line";
+                                return (
+                                  <button
+                                    key={`${key}-${String(entry?.value ?? "")}`}
+                                    type="button"
+                                    className="inline-flex items-center gap-1.5"
+                                    onClick={() => isClickable && handleCountLegendClick(key as CountSeriesKey)}
+                                  >
+                                    {isLine ? (
+                                      <span
+                                        className="inline-block h-0.5 w-3 rounded"
+                                        style={{ backgroundColor: String(entry?.color ?? "#8884d8") }}
+                                      />
+                                    ) : (
+                                      <span
+                                        className="inline-block h-2.5 w-2.5 rounded-sm"
+                                        style={{ backgroundColor: String(entry?.color ?? "#8884d8") }}
+                                      />
+                                    )}
+                                    <span style={{ color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))" }}>
+                                      {String(entry?.value ?? "")}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {isCountsFiltered && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="absolute right-0 h-7 px-2.5"
+                                onClick={resetCountsSeries}
+                              >
+                                Reset
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       />
                       <Bar
+                        yAxisId="left"
                         dataKey="leadsCnt"
                         name="Leads count"
                         fill={COLORS.quotations}
@@ -966,6 +1022,7 @@ export default function ConsumerDataDashboardPage() {
                         onClick={() => handleCountLegendClick("leadsCnt")}
                       />
                       <Bar
+                        yAxisId="left"
                         dataKey="policyCnt"
                         name="Policy count"
                         fill={COLORS.policies}
@@ -977,7 +1034,17 @@ export default function ConsumerDataDashboardPage() {
                         maxBarSize={useLineForDailyCounts ? 22 : undefined}
                         onClick={() => handleCountLegendClick("policyCnt")}
                       />
-                    </BarChart>
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="conversionRatePct"
+                        name="Conversion rate"
+                        stroke={COLORS.requests}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 3 }}
+                      />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               )}
@@ -1038,11 +1105,6 @@ export default function ConsumerDataDashboardPage() {
                   <Maximize2 className="h-4 w-4" />
                   Expand
                 </Button>
-                {isCustomersFiltered && (
-                  <Button variant="outline" size="sm" className="h-8 px-3" onClick={resetCustomerSeries}>
-                    Show all
-                  </Button>
-                )}
               </div>
             </CardHeader>
             <CardContent className="p-0 flex-1 flex flex-col">
@@ -1074,26 +1136,42 @@ export default function ConsumerDataDashboardPage() {
                       <Tooltip />
                       <Legend
                         payload={CUSTOMERS_LEGEND_PAYLOAD as any}
-                        wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
-                        formatter={(value, entry) => {
-                          const key = String(entry.dataKey ?? "") as CustomerSeriesKey;
-                          const isActive = effectiveActiveCustomerSeries.includes(key);
-                          return (
-                            <span
-                              style={{
-                                color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                              }}
-                            >
-                              {String(value)}
-                            </span>
-                          );
-                        }}
-                        onClick={(payload) => {
-                          const key = String(payload?.dataKey ?? "") as CustomerSeriesKey;
-                          if (key === "newPolicyCnt" || key === "returningPolicyCnt") {
-                            handleCustomerLegendClick(key);
-                          }
-                        }}
+                        content={({ payload }) => (
+                          <div className="relative flex items-center justify-center gap-2 px-2 text-xs">
+                            <div className="flex flex-wrap items-center justify-center gap-4">
+                              {(payload ?? []).map((entry: any) => {
+                                const key = String(entry?.dataKey ?? "") as CustomerSeriesKey;
+                                const isActive = effectiveActiveCustomerSeries.includes(key);
+                                return (
+                                  <button
+                                    key={`${key}-${String(entry?.value ?? "")}`}
+                                    type="button"
+                                    className="inline-flex items-center gap-1.5"
+                                    onClick={() => handleCustomerLegendClick(key)}
+                                  >
+                                    <span
+                                      className="inline-block h-2.5 w-2.5 rounded-sm"
+                                      style={{ backgroundColor: String(entry?.color ?? "#8884d8") }}
+                                    />
+                                    <span style={{ color: isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))" }}>
+                                      {String(entry?.value ?? "")}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {isCustomersFiltered && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="absolute right-0 h-7 px-2.5"
+                                onClick={resetCustomerSeries}
+                              >
+                                Reset
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       />
                       {showNewCustomerSeries && (
                         <Bar
@@ -1245,7 +1323,7 @@ export default function ConsumerDataDashboardPage() {
               <>
                 <div className="h-[65vh] w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
+                    <ComposedChart
                       key={countsChartKey}
                       data={countsChartData}
                       barCategoryGap={useLineForDailyCounts ? "8%" : "20%"}
@@ -1255,19 +1333,30 @@ export default function ConsumerDataDashboardPage() {
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} />
                       <YAxis
+                        yAxisId="left"
                         width={72}
                         tickLine={false}
                         axisLine={false}
                         domain={[0, countsYAxisMax]}
                         tickFormatter={(v) => formatKAxis(Number(v))}
                       />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        width={52}
+                        tickLine={false}
+                        axisLine={false}
+                        domain={[0, "auto"]}
+                        tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
+                      />
                       <Tooltip formatter={formatTooltipValue} />
                       <Legend
                         payload={COUNTS_LEGEND_PAYLOAD as any}
                         wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
                         formatter={(value, entry) => {
-                          const key = String(entry.dataKey ?? "") as CountSeriesKey;
-                          const isActive = effectiveActiveCountSeries.includes(key);
+                          const key = String(entry.dataKey ?? "") as CountLegendSeriesKey;
+                          const isActive =
+                            key === "conversionRatePct" || effectiveActiveCountSeries.includes(key);
                           return (
                             <span
                               style={{
@@ -1286,6 +1375,7 @@ export default function ConsumerDataDashboardPage() {
                         }}
                       />
                       <Bar
+                        yAxisId="left"
                         dataKey="leadsCnt"
                         name="Leads count"
                         fill={COLORS.quotations}
@@ -1298,6 +1388,7 @@ export default function ConsumerDataDashboardPage() {
                         onClick={() => handleCountLegendClick("leadsCnt")}
                       />
                       <Bar
+                        yAxisId="left"
                         dataKey="policyCnt"
                         name="Policy count"
                         fill={COLORS.policies}
@@ -1309,7 +1400,17 @@ export default function ConsumerDataDashboardPage() {
                         maxBarSize={useLineForDailyCounts ? 22 : undefined}
                         onClick={() => handleCountLegendClick("policyCnt")}
                       />
-                    </BarChart>
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="conversionRatePct"
+                        name="Conversion rate"
+                        stroke={COLORS.requests}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 3 }}
+                      />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
                 <ChartDataTable
