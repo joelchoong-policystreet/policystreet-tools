@@ -117,7 +117,7 @@ export function Sidebar() {
       </Link>
 
       <nav className="flex-1 w-full overflow-y-auto px-2 py-2 space-y-1">
-        <Section label="Tools" icon={FileText} defaultOpen>
+        <Section label="Tools" icon={FileText}>
           <NavItem to="/report" icon={FileText} label="Report Generator" isActive={isActive("/report")} />
           <NavItem
             to={`/milestones/${DEFAULT_MILESTONE_BOARD_ID}`}
@@ -133,7 +133,7 @@ export function Sidebar() {
           <NavItem
             to="/dashboard/consumer-data"
             icon={BarChart3}
-            label="consumer data"
+            label="Consumer Sales"
             isActive={isActive("/dashboard/consumer-data")}
             indent
           />

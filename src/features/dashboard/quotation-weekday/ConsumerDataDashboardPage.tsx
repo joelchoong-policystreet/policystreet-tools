@@ -623,7 +623,7 @@ export default function ConsumerDataDashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       <main className="container max-w-7xl py-8">
-        <PageHeader icon={BarChart3} title="consumer data" description="" />
+        <PageHeader icon={BarChart3} title="Consumer Sales" description="" />
 
         {isError && (
           <Card className="mb-6 border-destructive/50 bg-destructive/5">
@@ -1005,10 +1005,10 @@ export default function ConsumerDataDashboardPage() {
             </CardHeader>
             <CardContent className="flex-1 overflow-auto">
               <div className="space-y-2">
-                <SummaryRow title="Leads" value={formatInt(summaryWithConversion.leadsCnt)} />
+                <SummaryRow title="Leads (Unique Vehicle Num)" value={formatInt(summaryWithConversion.leadsCnt)} />
                 <SummaryRow title="Policies" value={formatInt(summaryWithConversion.policyCnt)} />
                 <SummaryRow
-                  title="Conversion rate (Policy/Leads)"
+                  title="Conversion rate (Unique Leads/Policy)"
                   value={`${summaryWithConversion.conversionRatePct.toFixed(2)}%`}
                 />
                 <SummaryRow title="New customers" value={formatInt(summaryWithConversion.newPolicyCnt)} />
