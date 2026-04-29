@@ -47,6 +47,8 @@ import type { DateRange } from "react-day-picker";
 
 type ConsumerRow = {
   day: string;
+  year: number;
+  dayDate: Date;
   leadsCnt: number;
   newLeadsCnt: number;
   requestCnt: number;
@@ -83,6 +85,8 @@ type SeriesPoint = {
 
 const TABLE_NAME = "consumer_data_daily";
 const DEFAULT_YEAR = 2026;
+const CONSUMER_DATA_CACHE_KEY = "consumer-data-dashboard-cache-v1";
+const CONSUMER_DATA_STALE_MS = 12 * 60 * 60 * 1000;
 const QUADRANT_CARD_HEIGHT_CLASS = "h-[700px]";
 const QUADRANT_CARD_SHELL_CLASS =
   "rounded-2xl border-2 border-border/80 bg-card shadow-sm overflow-hidden";
@@ -209,9 +213,7 @@ function yearOptionsForSelect(rows: ConsumerRow[]): number[] {
   let minY = DEFAULT_YEAR;
   let maxY = DEFAULT_YEAR;
   for (const r of rows) {
-    const d = parseISO(r.day);
-    if (Number.isNaN(d.getTime())) continue;
-    const y = d.getFullYear();
+    const y = r.year;
     if (y < minY) minY = y;
     if (y > maxY) maxY = y;
   }
@@ -225,8 +227,7 @@ function yearOptionsForSelect(rows: ConsumerRow[]): number[] {
 function aggregateBy(rows: ConsumerRow[], granularity: Granularity): SeriesPoint[] {
   const buckets = new Map<string, SeriesPoint>();
   for (const row of rows) {
-    const d = parseISO(row.day);
-    if (Number.isNaN(d.getTime())) continue;
+    const d = row.dayDate;
 
     let sortKey = "";
     let label = "";
@@ -314,7 +315,10 @@ function ChartDataTable({
   onExpandTable?: () => void;
   maxHeightClassName?: string;
 }) {
-  const sortedRows = [...rows].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  const sortedRows = useMemo(
+    () => [...rows].sort((a, b) => b.sortKey.localeCompare(a.sortKey)),
+    [rows]
+  );
 
   return (
     <div className="mt-0 rounded-b-lg border-t bg-muted/10 overflow-hidden">
@@ -399,8 +403,23 @@ export default function ConsumerDataDashboardPage() {
   const [activeRevenueSeries, setActiveRevenueSeries] = useState<RevenueSeriesKey[]>(REVENUE_SERIES_KEYS);
   const [activeCustomerSeries, setActiveCustomerSeries] =
     useState<CustomerSeriesKey[]>(CUSTOMER_SERIES_KEYS);
+  const readConsumerDataCache = (): { rows: ConsumerRow[]; updatedAt: number } | null => {
+    try {
+      const raw = localStorage.getItem(CONSUMER_DATA_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { rows?: ConsumerRow[]; updatedAt?: number };
+      if (!Array.isArray(parsed.rows) || typeof parsed.updatedAt !== "number") return null;
+      return { rows: parsed.rows, updatedAt: parsed.updatedAt };
+    } catch {
+      return null;
+    }
+  };
+  const initialCache = readConsumerDataCache();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["consumer-data-dashboard", TABLE_NAME],
+    staleTime: CONSUMER_DATA_STALE_MS,
+    initialData: initialCache?.rows,
+    initialDataUpdatedAt: initialCache?.updatedAt,
     queryFn: async () => {
       const pageSize = 1000;
       const allRows: any[] = [];
@@ -421,11 +440,16 @@ export default function ConsumerDataDashboardPage() {
         from += pageSize;
       }
 
-      return allRows
+      const rows = allRows
         .map((r) => {
           const day = String(r.date ?? "").trim().slice(0, 10);
+          const parsedDay = parseISO(day);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+          if (Number.isNaN(parsedDay.getTime())) return null;
           const row = {
             day,
+            year: parsedDay.getFullYear(),
+            dayDate: parsedDay,
             leadsCnt: Number(r.leads_cnt ?? 0),
             newLeadsCnt: Number(r.new_leads_cnt ?? 0),
             requestCnt: Number(r.request_cnt ?? 0),
@@ -436,10 +460,21 @@ export default function ConsumerDataDashboardPage() {
             newCustomerAmount: Number(r.new_customer_amount ?? 0),
             returningCustomerAmount: Number(r.returning_customer_amount ?? 0),
           } satisfies ConsumerRow;
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
           return row;
         })
         .filter(Boolean) as ConsumerRow[];
+      try {
+        localStorage.setItem(
+          CONSUMER_DATA_CACHE_KEY,
+          JSON.stringify({
+            updatedAt: Date.now(),
+            rows,
+          })
+        );
+      } catch {
+        // Ignore localStorage quota/access issues.
+      }
+      return rows;
     },
   });
 
@@ -502,12 +537,9 @@ export default function ConsumerDataDashboardPage() {
     }
     if (!Number.isFinite(yearNum)) return [];
     if (granularity === "year") {
-      return rows.filter((r) => {
-        const y = parseISO(r.day).getFullYear();
-        return Number.isFinite(y) && y <= yearNum;
-      });
+      return rows.filter((r) => r.year <= yearNum);
     }
-    return rows.filter((r) => parseISO(r.day).getFullYear() === yearNum);
+    return rows.filter((r) => r.year === yearNum);
   }, [rows, yearNum, periodMode, granularity, customRange, availableDateRange]);
 
   const effectiveGranularity = useMemo<Granularity>(() => {
