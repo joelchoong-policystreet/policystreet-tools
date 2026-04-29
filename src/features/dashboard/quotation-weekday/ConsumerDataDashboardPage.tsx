@@ -403,13 +403,41 @@ export default function ConsumerDataDashboardPage() {
   const [activeRevenueSeries, setActiveRevenueSeries] = useState<RevenueSeriesKey[]>(REVENUE_SERIES_KEYS);
   const [activeCustomerSeries, setActiveCustomerSeries] =
     useState<CustomerSeriesKey[]>(CUSTOMER_SERIES_KEYS);
+  const normalizeConsumerRows = (input: unknown): ConsumerRow[] => {
+    if (!Array.isArray(input)) return [];
+    return input
+      .map((raw) => {
+        const record = raw as Partial<ConsumerRow> & Record<string, unknown>;
+        const day = String(record.day ?? "").trim().slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+        const parsedDay = parseISO(day);
+        if (Number.isNaN(parsedDay.getTime())) return null;
+        return {
+          day,
+          year: Number.isFinite(Number(record.year)) ? Number(record.year) : parsedDay.getFullYear(),
+          dayDate: parsedDay,
+          leadsCnt: Number(record.leadsCnt ?? 0),
+          newLeadsCnt: Number(record.newLeadsCnt ?? 0),
+          requestCnt: Number(record.requestCnt ?? 0),
+          policyCnt: Number(record.policyCnt ?? 0),
+          newPolicyCnt: Number(record.newPolicyCnt ?? 0),
+          returningPolicyCnt: Number(record.returningPolicyCnt ?? 0),
+          totalAmount: Number(record.totalAmount ?? 0),
+          newCustomerAmount: Number(record.newCustomerAmount ?? 0),
+          returningCustomerAmount: Number(record.returningCustomerAmount ?? 0),
+        } satisfies ConsumerRow;
+      })
+      .filter((row): row is ConsumerRow => row !== null);
+  };
   const readConsumerDataCache = (): { rows: ConsumerRow[]; updatedAt: number } | null => {
     try {
       const raw = localStorage.getItem(CONSUMER_DATA_CACHE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as { rows?: ConsumerRow[]; updatedAt?: number };
-      if (!Array.isArray(parsed.rows) || typeof parsed.updatedAt !== "number") return null;
-      return { rows: parsed.rows, updatedAt: parsed.updatedAt };
+      if (typeof parsed.updatedAt !== "number") return null;
+      const rows = normalizeConsumerRows(parsed.rows);
+      if (rows.length === 0) return null;
+      return { rows, updatedAt: parsed.updatedAt };
     } catch {
       return null;
     }
@@ -489,6 +517,12 @@ export default function ConsumerDataDashboardPage() {
     };
   }, [rows]);
   const [selectedYear, setSelectedYear] = useState(String(DEFAULT_YEAR));
+  useEffect(() => {
+    if (yearOptions.length === 0) return;
+    if (yearOptions.includes(Number.parseInt(selectedYear, 10))) return;
+    setSelectedYear(String(yearOptions[yearOptions.length - 1]));
+  }, [yearOptions, selectedYear]);
+
   const [granularity, setGranularity] = useState<Granularity>("month");
   const [periodMode, setPeriodMode] = useState<PeriodMode>("full_year");
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined);
