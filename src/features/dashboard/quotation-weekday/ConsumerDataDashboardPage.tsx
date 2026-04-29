@@ -48,6 +48,8 @@ import type { DateRange } from "react-day-picker";
 type ConsumerRow = {
   day: string;
   leadsCnt: number;
+  newLeadsCnt: number;
+  requestCnt: number;
   policyCnt: number;
   newPolicyCnt: number;
   returningPolicyCnt: number;
@@ -58,8 +60,8 @@ type ConsumerRow = {
 
 type Granularity = "day" | "week" | "month" | "year";
 type PeriodMode = "full_year" | "this_month" | "custom_range";
-type CountSeriesKey = "leadsCnt" | "policyCnt";
-type CountLegendSeriesKey = CountSeriesKey | "conversionRatePct";
+type CountSeriesKey = "requestCnt" | "leadsCnt" | "newLeadsCnt" | "policyCnt";
+type CountLegendSeriesKey = CountSeriesKey | "conversionRatePct" | "requestCnt" | "newLeadsCnt";
 type RevenueSeriesKey = "newCustomerAmount" | "returningCustomerAmount" | "totalAmount";
 type CustomerSeriesKey = "newPolicyCnt" | "returningPolicyCnt";
 
@@ -67,6 +69,8 @@ type SeriesPoint = {
   label: string;
   sortKey: string;
   leadsCnt: number;
+  newLeadsCnt: number;
+  requestCnt: number;
   policyCnt: number;
   conversionRatePct: number;
   newPolicyCnt: number;
@@ -87,6 +91,7 @@ const IN_CARD_CHART_AREA_CLASS = "flex-1 min-h-[320px]";
 const COLORS = {
   quotations: "hsl(221.2 83.2% 53.3%)",
   requests: "hsl(142.1 70.6% 45.3%)",
+  uniqueLeads: "hsl(258 90% 66%)",
   policies: "hsl(37.7 92.1% 50.2%)",
   newPolicy: "hsl(262.1 83.3% 57.8%)",
   returningPolicy: "hsl(191 85% 42%)",
@@ -108,7 +113,33 @@ const REVENUE_LEGEND_PAYLOAD = [
 ] as const;
 
 const COUNTS_LEGEND_PAYLOAD = [
-  { value: "Leads count", type: "square", id: "leadsCnt", color: COLORS.quotations, dataKey: "leadsCnt" },
+  { value: "Request count", type: "square", id: "requestCnt", color: COLORS.requests, dataKey: "requestCnt" },
+  { value: "Vehicle count", type: "square", id: "leadsCnt", color: COLORS.quotations, dataKey: "leadsCnt" },
+  {
+    value: "Leads count",
+    type: "square",
+    id: "newLeadsCnt",
+    color: COLORS.uniqueLeads,
+    dataKey: "newLeadsCnt",
+  },
+  { value: "Policy count", type: "square", id: "policyCnt", color: COLORS.policies, dataKey: "policyCnt" },
+  {
+    value: "Conversion rate",
+    type: "line",
+    id: "conversionRatePct",
+    color: COLORS.requests,
+    dataKey: "conversionRatePct",
+  },
+] as const;
+
+const LEADS_POLICY_LEGEND_PAYLOAD = [
+  {
+    value: "Leads count",
+    type: "square",
+    id: "newLeadsCnt",
+    color: COLORS.uniqueLeads,
+    dataKey: "newLeadsCnt",
+  },
   { value: "Policy count", type: "square", id: "policyCnt", color: COLORS.policies, dataKey: "policyCnt" },
   {
     value: "Conversion rate",
@@ -221,6 +252,8 @@ function aggregateBy(rows: ConsumerRow[], granularity: Granularity): SeriesPoint
         label,
         sortKey,
         leadsCnt: 0,
+        newLeadsCnt: 0,
+        requestCnt: 0,
         policyCnt: 0,
         conversionRatePct: 0,
         newPolicyCnt: 0,
@@ -232,6 +265,8 @@ function aggregateBy(rows: ConsumerRow[], granularity: Granularity): SeriesPoint
       } satisfies SeriesPoint);
 
     current.leadsCnt += row.leadsCnt;
+    current.newLeadsCnt += row.newLeadsCnt;
+    current.requestCnt += row.requestCnt;
     current.policyCnt += row.policyCnt;
     current.newPolicyCnt += row.newPolicyCnt;
     current.returningPolicyCnt += row.returningPolicyCnt;
@@ -345,7 +380,8 @@ function ChartDataTable({
 }
 
 export default function ConsumerDataDashboardPage() {
-  const COUNT_SERIES_KEYS: CountSeriesKey[] = ["leadsCnt", "policyCnt"];
+  const COUNT_SERIES_KEYS: CountSeriesKey[] = ["requestCnt", "leadsCnt", "newLeadsCnt", "policyCnt"];
+  const LEADS_POLICY_SERIES_KEYS: CountSeriesKey[] = ["newLeadsCnt", "policyCnt"];
   const REVENUE_SERIES_KEYS: RevenueSeriesKey[] = [
     "newCustomerAmount",
     "returningCustomerAmount",
@@ -357,7 +393,9 @@ export default function ConsumerDataDashboardPage() {
   const [expandedTablePanel, setExpandedTablePanel] = useState<
     "revenue" | "counts" | "newReturning" | null
   >(null);
-  const [activeCountSeries, setActiveCountSeries] = useState<CountSeriesKey[]>(COUNT_SERIES_KEYS);
+  const [activeCountSeries, setActiveCountSeries] = useState<CountSeriesKey[]>(LEADS_POLICY_SERIES_KEYS);
+  const [activeDetailedCountSeries, setActiveDetailedCountSeries] =
+    useState<CountSeriesKey[]>(COUNT_SERIES_KEYS);
   const [activeRevenueSeries, setActiveRevenueSeries] = useState<RevenueSeriesKey[]>(REVENUE_SERIES_KEYS);
   const [activeCustomerSeries, setActiveCustomerSeries] =
     useState<CustomerSeriesKey[]>(CUSTOMER_SERIES_KEYS);
@@ -372,7 +410,7 @@ export default function ConsumerDataDashboardPage() {
         const { data, error } = await (supabase as any)
           .from(TABLE_NAME)
           .select(
-            "date,leads_cnt,policy_cnt,new_policy,returning_policy,total_amount,new_customer_amount,returning_customer_amount"
+            "date,leads_cnt,new_leads_cnt,request_cnt,policy_cnt,new_policy,returning_policy,total_amount,new_customer_amount,returning_customer_amount"
           )
           .order("date", { ascending: true })
           .range(from, to);
@@ -389,6 +427,8 @@ export default function ConsumerDataDashboardPage() {
           const row = {
             day,
             leadsCnt: Number(r.leads_cnt ?? 0),
+            newLeadsCnt: Number(r.new_leads_cnt ?? 0),
+            requestCnt: Number(r.request_cnt ?? 0),
             policyCnt: Number(r.policy_cnt ?? 0),
             newPolicyCnt: Number(r.new_policy ?? 0),
             returningPolicyCnt: Number(r.returning_policy ?? 0),
@@ -419,6 +459,7 @@ export default function ConsumerDataDashboardPage() {
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined);
   const [customRangeDropdownOpen, setCustomRangeDropdownOpen] = useState(false);
   const customRangePanelRef = useRef<HTMLDivElement | null>(null);
+  const wideCountsScrollRef = useRef<HTMLDivElement | null>(null);
   const customRangeLabel = useMemo(() => {
     if (!customRange?.from) return "Custom range";
     if (!customRange.to) return `Custom: ${format(customRange.from, "dd/MM/yyyy")}`;
@@ -481,12 +522,41 @@ export default function ConsumerDataDashboardPage() {
     [filteredRows, effectiveGranularity]
   );
 
+  useEffect(() => {
+    const container = wideCountsScrollRef.current;
+    if (!container) return;
+    const rafId = window.requestAnimationFrame(() => {
+      container.scrollLeft = container.scrollWidth;
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [chartData]);
+
   const validActiveCountSeries = useMemo(
-    () => activeCountSeries.filter((k): k is CountSeriesKey => COUNT_SERIES_KEYS.includes(k)),
+    () => activeCountSeries.filter((k): k is CountSeriesKey => LEADS_POLICY_SERIES_KEYS.includes(k)),
     [activeCountSeries]
   );
   const effectiveActiveCountSeries =
-    validActiveCountSeries.length > 0 ? validActiveCountSeries : COUNT_SERIES_KEYS;
+    validActiveCountSeries.length > 0 ? validActiveCountSeries : LEADS_POLICY_SERIES_KEYS;
+  const validActiveDetailedCountSeries = useMemo(
+    () => activeDetailedCountSeries.filter((k): k is CountSeriesKey => COUNT_SERIES_KEYS.includes(k)),
+    [activeDetailedCountSeries]
+  );
+  const effectiveActiveDetailedCountSeries =
+    validActiveDetailedCountSeries.length > 0 ? validActiveDetailedCountSeries : COUNT_SERIES_KEYS;
+  const detailedCountsYAxisMax = useMemo(() => {
+    const activeKeys: CountSeriesKey[] = effectiveActiveDetailedCountSeries;
+
+    let maxVal = 0;
+    for (const row of chartData) {
+      for (const key of activeKeys) {
+        const value = Number(row[key] ?? 0);
+        if (value > maxVal) maxVal = value;
+      }
+    }
+
+    if (maxVal <= 0) return 10;
+    return Math.ceil(maxVal * 1.1);
+  }, [chartData, effectiveActiveDetailedCountSeries]);
 
   const countsYAxisMax = useMemo(() => {
     const activeKeys: CountSeriesKey[] = effectiveActiveCountSeries;
@@ -547,16 +617,44 @@ export default function ConsumerDataDashboardPage() {
     return Math.ceil(maxVal * 1.1);
   }, [chartData, effectiveActiveCustomerSeries]);
 
+  const toggleCountSeriesSelection = (
+    prev: CountSeriesKey[],
+    key: CountSeriesKey,
+    allowedKeys: CountSeriesKey[]
+  ) => {
+    const base = prev.length > 0 ? prev : allowedKeys;
+    const isAllActive = allowedKeys.every((k) => base.includes(k));
+
+    // First click from "all active" isolates only the clicked series.
+    if (isAllActive) {
+      return [key];
+    }
+
+    if (base.includes(key)) {
+      // Keep at least one selected series active.
+      if (base.length === 1) return base;
+      return base.filter((k) => k !== key);
+    }
+    const next = [...base, key];
+    return allowedKeys.filter((k) => next.includes(k));
+  };
+
   const handleCountLegendClick = (key: CountSeriesKey) => {
-    setActiveCountSeries([key]);
+    setActiveCountSeries((prev) => toggleCountSeriesSelection(prev, key, LEADS_POLICY_SERIES_KEYS));
+  };
+
+  const handleDetailedCountLegendClick = (key: CountSeriesKey) => {
+    setActiveDetailedCountSeries((prev) => toggleCountSeriesSelection(prev, key, COUNT_SERIES_KEYS));
   };
   const getCountLegendKey = (legendPayload: any): CountSeriesKey | null => {
     const rawKey = String(legendPayload?.dataKey ?? legendPayload?.payload?.dataKey ?? "").trim();
-    if (rawKey === "leadsCnt" || rawKey === "policyCnt") return rawKey;
+    if (rawKey === "newLeadsCnt" || rawKey === "policyCnt") {
+      return rawKey;
+    }
     const rawValue = String(legendPayload?.value ?? legendPayload?.payload?.value ?? "")
       .trim()
       .toLowerCase();
-    if (rawValue === "leads count") return "leadsCnt";
+    if (rawValue === "leads count" || rawValue === "new leads count") return "newLeadsCnt";
     if (rawValue === "policy count") return "policyCnt";
     return null;
   };
@@ -567,39 +665,93 @@ export default function ConsumerDataDashboardPage() {
     setActiveCustomerSeries([key]);
   };
 
-  const showLeadsSeries = effectiveActiveCountSeries.includes("leadsCnt");
-  const showPolicySeries = effectiveActiveCountSeries.includes("policyCnt");
+  const showMainLeadsSeries = effectiveActiveCountSeries.includes("newLeadsCnt");
+  const showMainPolicySeries = effectiveActiveCountSeries.includes("policyCnt");
+  const showDetailedRequestSeries = effectiveActiveDetailedCountSeries.includes("requestCnt");
+  const showDetailedLeadsSeries = effectiveActiveDetailedCountSeries.includes("leadsCnt");
+  const showDetailedNewLeadsSeries = effectiveActiveDetailedCountSeries.includes("newLeadsCnt");
+  const showDetailedPolicySeries = effectiveActiveDetailedCountSeries.includes("policyCnt");
   const showRevenueNewSeries = effectiveActiveRevenueSeries.includes("newCustomerAmount");
   const showRevenueReturningSeries = effectiveActiveRevenueSeries.includes("returningCustomerAmount");
   const showRevenueTotalSeries = effectiveActiveRevenueSeries.includes("totalAmount");
   const showNewCustomerSeries = effectiveActiveCustomerSeries.includes("newPolicyCnt");
   const showReturningCustomerSeries = effectiveActiveCustomerSeries.includes("returningPolicyCnt");
   const useLineForDailyCounts = effectiveGranularity === "day";
-  const hasPartialCountSelection = effectiveActiveCountSeries.length < COUNT_SERIES_KEYS.length;
-  const leadsBarOpacity = showLeadsSeries ? 1 : hasPartialCountSelection ? 0.08 : 0.28;
-  const policyBarOpacity = showPolicySeries ? 1 : hasPartialCountSelection ? 0.08 : 0.28;
+  const activeCountBarSeriesCount = effectiveActiveCountSeries.length;
+  const activeDetailedCountBarSeriesCount = effectiveActiveDetailedCountSeries.length;
+  const isSingleActiveCountBar = activeCountBarSeriesCount === 1;
+  const isSingleActiveDetailedCountBar = activeDetailedCountBarSeriesCount === 1;
+  const hasPartialCountSelection = effectiveActiveCountSeries.length < LEADS_POLICY_SERIES_KEYS.length;
+  const hasPartialDetailedCountSelection =
+    effectiveActiveDetailedCountSeries.length < COUNT_SERIES_KEYS.length;
+  const mainLeadsBarOpacity = showMainLeadsSeries ? 1 : hasPartialCountSelection ? 0.08 : 0.28;
+  const mainPolicyBarOpacity = showMainPolicySeries ? 1 : hasPartialCountSelection ? 0.08 : 0.28;
+  const detailedRequestBarOpacity = showDetailedRequestSeries ? 1 : hasPartialDetailedCountSelection ? 0.08 : 0.28;
+  const detailedLeadsBarOpacity = showDetailedLeadsSeries ? 1 : hasPartialDetailedCountSelection ? 0.08 : 0.28;
+  const detailedNewLeadsBarOpacity =
+    showDetailedNewLeadsSeries ? 1 : hasPartialDetailedCountSelection ? 0.08 : 0.28;
+  const detailedPolicyBarOpacity = showDetailedPolicySeries ? 1 : hasPartialDetailedCountSelection ? 0.08 : 0.28;
   const countsChartKey = `counts:${effectiveActiveCountSeries.slice().sort().join("|")}`;
+  const detailedCountsChartKey = `counts-detailed:${effectiveActiveDetailedCountSeries.slice().sort().join("|")}`;
+  const countsBarCategoryGap = isSingleActiveCountBar ? "10%" : useLineForDailyCounts ? "8%" : "20%";
+  const detailedCountsBarCategoryGap =
+    isSingleActiveDetailedCountBar ? "10%" : useLineForDailyCounts ? "8%" : "20%";
+  const countsBarGap = isSingleActiveCountBar ? 0 : useLineForDailyCounts ? 2 : 4;
+  const detailedCountsBarGap = isSingleActiveDetailedCountBar ? 0 : useLineForDailyCounts ? 2 : 4;
+  const countsMaxBarSize =
+    activeCountBarSeriesCount === 1 ? 72 : activeCountBarSeriesCount === 2 ? 40 : useLineForDailyCounts ? 22 : undefined;
+  const detailedCountsMaxBarSize =
+    activeDetailedCountBarSeriesCount === 1
+      ? 72
+      : activeDetailedCountBarSeriesCount === 2
+        ? 40
+        : useLineForDailyCounts
+          ? 22
+          : undefined;
+  const countsFixedBarSize = activeCountBarSeriesCount === 1 ? 34 : activeCountBarSeriesCount === 2 ? 22 : undefined;
+  const detailedCountsFixedBarSize =
+    activeDetailedCountBarSeriesCount === 1
+      ? 34
+      : activeDetailedCountBarSeriesCount === 2
+        ? 22
+        : undefined;
+  const wideCountsChartWidth = Math.max(1400, chartData.length * 82);
   const revenueChartKey = `revenue:${effectiveActiveRevenueSeries.slice().sort().join("|")}`;
   const customersChartKey = `customers:${effectiveActiveCustomerSeries.slice().sort().join("|")}`;
-  const isCountsFiltered = effectiveActiveCountSeries.length !== COUNT_SERIES_KEYS.length;
+  const isCountsFiltered = effectiveActiveCountSeries.length !== LEADS_POLICY_SERIES_KEYS.length;
+  const isDetailedCountsFiltered =
+    effectiveActiveDetailedCountSeries.length !== COUNT_SERIES_KEYS.length;
   const isRevenueFiltered = effectiveActiveRevenueSeries.length !== REVENUE_SERIES_KEYS.length;
   const isCustomersFiltered = effectiveActiveCustomerSeries.length !== CUSTOMER_SERIES_KEYS.length;
   const countsChartData = useMemo(
     () =>
       chartData.map((row) => ({
         ...row,
-        leadsCnt: showLeadsSeries ? row.leadsCnt : 0,
-        policyCnt: showPolicySeries ? row.policyCnt : 0,
+        newLeadsCnt: showMainLeadsSeries ? row.newLeadsCnt : 0,
+        policyCnt: showMainPolicySeries ? row.policyCnt : 0,
       })),
-    [chartData, showLeadsSeries, showPolicySeries]
+    [chartData, showMainLeadsSeries, showMainPolicySeries]
   );
-  const resetCountsSeries = () => setActiveCountSeries(COUNT_SERIES_KEYS);
+  const detailedCountsChartData = useMemo(
+    () =>
+      chartData.map((row) => ({
+        ...row,
+        requestCnt: showDetailedRequestSeries ? row.requestCnt : 0,
+        leadsCnt: showDetailedLeadsSeries ? row.leadsCnt : 0,
+        newLeadsCnt: showDetailedNewLeadsSeries ? row.newLeadsCnt : 0,
+        policyCnt: showDetailedPolicySeries ? row.policyCnt : 0,
+      })),
+    [chartData, showDetailedRequestSeries, showDetailedLeadsSeries, showDetailedNewLeadsSeries, showDetailedPolicySeries]
+  );
+  const resetCountsSeries = () => setActiveCountSeries(LEADS_POLICY_SERIES_KEYS);
+  const resetDetailedCountsSeries = () => setActiveDetailedCountSeries(COUNT_SERIES_KEYS);
   const resetRevenueSeries = () => setActiveRevenueSeries(REVENUE_SERIES_KEYS);
   const resetCustomerSeries = () => setActiveCustomerSeries(CUSTOMER_SERIES_KEYS);
 
   const summary = useMemo(() => {
     return filteredRows.reduce(
       (acc, row) => {
+        acc.requestCnt += row.requestCnt;
         acc.leadsCnt += row.leadsCnt;
         acc.policyCnt += row.policyCnt;
         acc.newPolicyCnt += row.newPolicyCnt;
@@ -608,6 +760,7 @@ export default function ConsumerDataDashboardPage() {
         return acc;
       },
       {
+        requestCnt: 0,
         leadsCnt: 0,
         policyCnt: 0,
         conversionRatePct: 0,
@@ -935,8 +1088,8 @@ export default function ConsumerDataDashboardPage() {
                     <ComposedChart
                       key={countsChartKey}
                       data={countsChartData}
-                      barCategoryGap={useLineForDailyCounts ? "8%" : "20%"}
-                      barGap={useLineForDailyCounts ? 2 : 4}
+                      barCategoryGap={countsBarCategoryGap}
+                      barGap={countsBarGap}
                       margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
@@ -960,13 +1113,13 @@ export default function ConsumerDataDashboardPage() {
                       />
                       <Tooltip formatter={formatTooltipValue} />
                       <Legend
-                        payload={COUNTS_LEGEND_PAYLOAD as any}
+                        payload={LEADS_POLICY_LEGEND_PAYLOAD as any}
                         content={({ payload }) => (
                           <div className="relative flex items-center justify-center gap-2 px-2 text-xs">
                             <div className="flex flex-wrap items-center justify-center gap-4">
                               {(payload ?? []).map((entry: any) => {
                                 const key = String(entry?.dataKey ?? "") as CountLegendSeriesKey;
-                                const isClickable = key === "leadsCnt" || key === "policyCnt";
+                                const isClickable = key === "newLeadsCnt" || key === "policyCnt";
                                 const isActive =
                                   key === "conversionRatePct" || effectiveActiveCountSeries.includes(key);
                                 const isLine = String(entry?.type ?? "") === "line";
@@ -1010,28 +1163,30 @@ export default function ConsumerDataDashboardPage() {
                       />
                       <Bar
                         yAxisId="left"
-                        dataKey="leadsCnt"
+                        dataKey="newLeadsCnt"
                         name="Leads count"
-                        fill={COLORS.quotations}
-                        fillOpacity={leadsBarOpacity}
-                        opacity={leadsBarOpacity}
-                        stroke={showLeadsSeries ? COLORS.quotations : "transparent"}
-                        strokeWidth={showLeadsSeries ? 1.25 : 0}
+                        fill={COLORS.uniqueLeads}
+                        barSize={countsFixedBarSize}
+                        fillOpacity={mainLeadsBarOpacity}
+                        opacity={mainLeadsBarOpacity}
+                        stroke={showMainLeadsSeries ? COLORS.uniqueLeads : "transparent"}
+                        strokeWidth={showMainLeadsSeries ? 1.25 : 0}
                         minPointSize={useLineForDailyCounts ? 3 : 0}
-                        maxBarSize={useLineForDailyCounts ? 22 : undefined}
-                        onClick={() => handleCountLegendClick("leadsCnt")}
+                        maxBarSize={countsMaxBarSize}
+                        onClick={() => handleCountLegendClick("newLeadsCnt")}
                       />
                       <Bar
                         yAxisId="left"
                         dataKey="policyCnt"
                         name="Policy count"
                         fill={COLORS.policies}
-                        fillOpacity={policyBarOpacity}
-                        opacity={policyBarOpacity}
-                        stroke={showPolicySeries ? COLORS.policies : "transparent"}
-                        strokeWidth={showPolicySeries ? 1.25 : 0}
+                        barSize={countsFixedBarSize}
+                        fillOpacity={mainPolicyBarOpacity}
+                        opacity={mainPolicyBarOpacity}
+                        stroke={showMainPolicySeries ? COLORS.policies : "transparent"}
+                        strokeWidth={showMainPolicySeries ? 1.25 : 0}
                         minPointSize={useLineForDailyCounts ? 3 : 0}
-                        maxBarSize={useLineForDailyCounts ? 22 : undefined}
+                        maxBarSize={countsMaxBarSize}
                         onClick={() => handleCountLegendClick("policyCnt")}
                       />
                       <Line
@@ -1054,7 +1209,7 @@ export default function ConsumerDataDashboardPage() {
                   title="Counts"
                   onExpandTable={() => setExpandedTablePanel("counts")}
                   columns={[
-                    { key: "leadsCnt", label: "Leads count", kind: "int" },
+                    { key: "newLeadsCnt", label: "Leads count", kind: "int" },
                     { key: "policyCnt", label: "Policy count", kind: "int" },
                     { key: "conversionRatePct", label: "Conversion rate", kind: "pct" },
                   ]}
@@ -1072,7 +1227,8 @@ export default function ConsumerDataDashboardPage() {
             </CardHeader>
             <CardContent className="flex-1 overflow-auto">
               <div className="space-y-2">
-                <SummaryRow title="Leads (Unique Vehicle Num)" value={formatInt(summaryWithConversion.leadsCnt)} />
+                <SummaryRow title="Request count" value={formatInt(summaryWithConversion.requestCnt)} />
+                <SummaryRow title="Leads count" value={formatInt(summaryWithConversion.leadsCnt)} />
                 <SummaryRow title="Policies" value={formatInt(summaryWithConversion.policyCnt)} />
                 <SummaryRow
                   title="Conversion rate (Unique Leads/Policy)"
@@ -1214,6 +1370,186 @@ export default function ConsumerDataDashboardPage() {
           </div>
         </div>
 
+        <Card className="mt-12 rounded-2xl border-2 border-border/80 bg-card shadow-sm overflow-hidden">
+          <CardHeader>
+            <CardTitle>Detailed Breakdown</CardTitle>
+            <CardDescription>End-to-end timeline for clearer period-by-period comparison</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {isLoading ? (
+              <div className="flex h-[420px] items-center justify-center text-muted-foreground">
+                Loading chart…
+              </div>
+            ) : chartData.length === 0 ? (
+              <div className="flex h-[420px] items-center justify-center text-muted-foreground">
+                No data for selected filters.
+              </div>
+            ) : (
+              <>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {(COUNTS_LEGEND_PAYLOAD as readonly any[]).map((entry) => {
+                    const key = String(entry?.dataKey ?? "") as CountLegendSeriesKey;
+                    const isClickable =
+                      key === "requestCnt" ||
+                      key === "leadsCnt" ||
+                      key === "newLeadsCnt" ||
+                      key === "policyCnt";
+                    const isActive =
+                      key === "conversionRatePct" || effectiveActiveDetailedCountSeries.includes(key);
+                    const isLine = String(entry?.type ?? "") === "line";
+                    return (
+                      <Button
+                        key={`wide-top-${key}`}
+                        type="button"
+                        variant={isActive ? "secondary" : "outline"}
+                        size="sm"
+                        className={`h-7 px-2.5 ${!isClickable ? "cursor-default" : ""}`}
+                        onClick={() => isClickable && handleDetailedCountLegendClick(key as CountSeriesKey)}
+                      >
+                        {isLine ? (
+                          <span
+                            className="mr-1 inline-block h-0.5 w-3 rounded"
+                            style={{ backgroundColor: String(entry?.color ?? "#8884d8") }}
+                          />
+                        ) : (
+                          <span
+                            className="mr-1 inline-block h-2.5 w-2.5 rounded-sm"
+                            style={{ backgroundColor: String(entry?.color ?? "#8884d8") }}
+                          />
+                        )}
+                        <span className={isActive ? "text-foreground" : "text-muted-foreground"}>
+                          {String(entry?.value ?? "")}
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+                {isDetailedCountsFiltered && (
+                  <Button variant="outline" size="sm" className="h-7 px-2.5" onClick={resetDetailedCountsSeries}>
+                    Reset
+                  </Button>
+                )}
+              </div>
+              <div ref={wideCountsScrollRef} className="overflow-x-auto">
+                <div style={{ width: wideCountsChartWidth, minWidth: "100%" }}>
+                  <ResponsiveContainer width="100%" height={420}>
+                    <ComposedChart
+                      key={`${detailedCountsChartKey}:wide`}
+                      data={detailedCountsChartData}
+                      barCategoryGap={detailedCountsBarCategoryGap}
+                      barGap={detailedCountsBarGap}
+                      margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                      <YAxis
+                        yAxisId="left"
+                        width={72}
+                        tickLine={false}
+                        axisLine={false}
+                        domain={[0, detailedCountsYAxisMax]}
+                        tickFormatter={(v) => formatKAxis(Number(v))}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        width={52}
+                        tickLine={false}
+                        axisLine={false}
+                        domain={[0, "auto"]}
+                        tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
+                      />
+                      <Tooltip formatter={formatTooltipValue} />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="requestCnt"
+                        name="Request count"
+                        fill={COLORS.requests}
+                        barSize={detailedCountsFixedBarSize}
+                        fillOpacity={detailedRequestBarOpacity}
+                        opacity={detailedRequestBarOpacity}
+                        stroke={showDetailedRequestSeries ? COLORS.requests : "transparent"}
+                        strokeWidth={showDetailedRequestSeries ? 1.25 : 0}
+                        minPointSize={useLineForDailyCounts ? 3 : 0}
+                        maxBarSize={detailedCountsMaxBarSize}
+                        onClick={() => handleDetailedCountLegendClick("requestCnt")}
+                      />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="leadsCnt"
+                        name="Vehicle count"
+                        fill={COLORS.quotations}
+                        barSize={detailedCountsFixedBarSize}
+                        fillOpacity={detailedLeadsBarOpacity}
+                        opacity={detailedLeadsBarOpacity}
+                        stroke={showDetailedLeadsSeries ? COLORS.quotations : "transparent"}
+                        strokeWidth={showDetailedLeadsSeries ? 1.25 : 0}
+                        minPointSize={useLineForDailyCounts ? 3 : 0}
+                        maxBarSize={detailedCountsMaxBarSize}
+                        onClick={() => handleDetailedCountLegendClick("leadsCnt")}
+                      />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="newLeadsCnt"
+                        name="Leads count"
+                        fill={COLORS.uniqueLeads}
+                        barSize={detailedCountsFixedBarSize}
+                        fillOpacity={detailedNewLeadsBarOpacity}
+                        opacity={detailedNewLeadsBarOpacity}
+                        stroke={showDetailedNewLeadsSeries ? COLORS.uniqueLeads : "transparent"}
+                        strokeWidth={showDetailedNewLeadsSeries ? 1.25 : 0}
+                        minPointSize={useLineForDailyCounts ? 3 : 0}
+                        maxBarSize={detailedCountsMaxBarSize}
+                        onClick={() => handleDetailedCountLegendClick("newLeadsCnt")}
+                      />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="policyCnt"
+                        name="Policy count"
+                        fill={COLORS.policies}
+                        barSize={detailedCountsFixedBarSize}
+                        fillOpacity={detailedPolicyBarOpacity}
+                        opacity={detailedPolicyBarOpacity}
+                        stroke={showDetailedPolicySeries ? COLORS.policies : "transparent"}
+                        strokeWidth={showDetailedPolicySeries ? 1.25 : 0}
+                        minPointSize={useLineForDailyCounts ? 3 : 0}
+                        maxBarSize={detailedCountsMaxBarSize}
+                        onClick={() => handleDetailedCountLegendClick("policyCnt")}
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="conversionRatePct"
+                        name="Conversion rate"
+                        stroke={COLORS.requests}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 3 }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              </>
+            )}
+            {!isLoading && chartData.length > 0 && (
+              <ChartDataTable
+                rows={chartData}
+                title="Detailed Breakdown"
+                onExpandTable={() => setExpandedTablePanel("counts")}
+                columns={[
+                  { key: "requestCnt", label: "Request count", kind: "int" },
+                  { key: "leadsCnt", label: "Vehicle count", kind: "int" },
+                  { key: "newLeadsCnt", label: "Leads count", kind: "int" },
+                  { key: "policyCnt", label: "Policy count", kind: "int" },
+                  { key: "conversionRatePct", label: "Conversion rate", kind: "pct" },
+                ]}
+              />
+            )}
+          </CardContent>
+        </Card>
+
         <Dialog open={expandedPanel !== null} onOpenChange={(open) => !open && setExpandedPanel(null)}>
           <DialogContent className="max-w-[95vw] w-[1200px] max-h-[90vh] overflow-auto">
             <DialogHeader>
@@ -1326,8 +1662,8 @@ export default function ConsumerDataDashboardPage() {
                     <ComposedChart
                       key={countsChartKey}
                       data={countsChartData}
-                      barCategoryGap={useLineForDailyCounts ? "8%" : "20%"}
-                      barGap={useLineForDailyCounts ? 2 : 4}
+                      barCategoryGap={countsBarCategoryGap}
+                      barGap={countsBarGap}
                       margin={{ top: 12, right: 20, left: 20, bottom: 16 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
@@ -1351,7 +1687,7 @@ export default function ConsumerDataDashboardPage() {
                       />
                       <Tooltip formatter={formatTooltipValue} />
                       <Legend
-                        payload={COUNTS_LEGEND_PAYLOAD as any}
+                        payload={LEADS_POLICY_LEGEND_PAYLOAD as any}
                         wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
                         formatter={(value, entry) => {
                           const key = String(entry.dataKey ?? "") as CountLegendSeriesKey;
@@ -1376,28 +1712,30 @@ export default function ConsumerDataDashboardPage() {
                       />
                       <Bar
                         yAxisId="left"
-                        dataKey="leadsCnt"
+                        dataKey="newLeadsCnt"
                         name="Leads count"
-                        fill={COLORS.quotations}
-                        fillOpacity={leadsBarOpacity}
-                        opacity={leadsBarOpacity}
-                        stroke={showLeadsSeries ? COLORS.quotations : "transparent"}
-                        strokeWidth={showLeadsSeries ? 1.25 : 0}
+                        fill={COLORS.uniqueLeads}
+                        barSize={countsFixedBarSize}
+                        fillOpacity={mainLeadsBarOpacity}
+                        opacity={mainLeadsBarOpacity}
+                        stroke={showMainLeadsSeries ? COLORS.uniqueLeads : "transparent"}
+                        strokeWidth={showMainLeadsSeries ? 1.25 : 0}
                         minPointSize={useLineForDailyCounts ? 3 : 0}
-                        maxBarSize={useLineForDailyCounts ? 22 : undefined}
-                        onClick={() => handleCountLegendClick("leadsCnt")}
+                        maxBarSize={countsMaxBarSize}
+                        onClick={() => handleCountLegendClick("newLeadsCnt")}
                       />
                       <Bar
                         yAxisId="left"
                         dataKey="policyCnt"
                         name="Policy count"
                         fill={COLORS.policies}
-                        fillOpacity={policyBarOpacity}
-                        opacity={policyBarOpacity}
-                        stroke={showPolicySeries ? COLORS.policies : "transparent"}
-                        strokeWidth={showPolicySeries ? 1.25 : 0}
+                        barSize={countsFixedBarSize}
+                        fillOpacity={mainPolicyBarOpacity}
+                        opacity={mainPolicyBarOpacity}
+                        stroke={showMainPolicySeries ? COLORS.policies : "transparent"}
+                        strokeWidth={showMainPolicySeries ? 1.25 : 0}
                         minPointSize={useLineForDailyCounts ? 3 : 0}
-                        maxBarSize={useLineForDailyCounts ? 22 : undefined}
+                        maxBarSize={countsMaxBarSize}
                         onClick={() => handleCountLegendClick("policyCnt")}
                       />
                       <Line
@@ -1417,7 +1755,7 @@ export default function ConsumerDataDashboardPage() {
                   rows={chartData}
                   title="Counts"
                   columns={[
-                    { key: "leadsCnt", label: "Leads count", kind: "int" },
+                    { key: "newLeadsCnt", label: "Leads count", kind: "int" },
                     { key: "policyCnt", label: "Policy count", kind: "int" },
                     { key: "conversionRatePct", label: "Conversion rate", kind: "pct" },
                   ]}
@@ -1539,7 +1877,7 @@ export default function ConsumerDataDashboardPage() {
                 title="Counts"
                 maxHeightClassName="max-h-[72vh]"
                 columns={[
-                  { key: "leadsCnt", label: "Leads count", kind: "int" },
+                  { key: "leadsCnt", label: "Vehicle count", kind: "int" },
                   { key: "policyCnt", label: "Policy count", kind: "int" },
                   { key: "conversionRatePct", label: "Conversion rate", kind: "pct" },
                 ]}
