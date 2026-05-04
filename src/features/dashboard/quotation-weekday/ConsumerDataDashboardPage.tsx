@@ -49,7 +49,6 @@ type ConsumerRow = {
   day: string;
   year: number;
   dayDate: Date;
-  leadsCnt: number;
   newLeadsCnt: number;
   requestCnt: number;
   policyCnt: number;
@@ -62,15 +61,14 @@ type ConsumerRow = {
 
 type Granularity = "day" | "week" | "month" | "year";
 type PeriodMode = "full_year" | "this_month" | "custom_range";
-type CountSeriesKey = "requestCnt" | "leadsCnt" | "newLeadsCnt" | "policyCnt";
-type CountLegendSeriesKey = CountSeriesKey | "conversionRatePct" | "requestCnt" | "newLeadsCnt";
+type CountSeriesKey = "requestCnt" | "newLeadsCnt" | "policyCnt";
+type CountLegendSeriesKey = CountSeriesKey | "conversionRatePct";
 type RevenueSeriesKey = "newCustomerAmount" | "returningCustomerAmount" | "totalAmount";
 type CustomerSeriesKey = "newPolicyCnt" | "returningPolicyCnt";
 
 type SeriesPoint = {
   label: string;
   sortKey: string;
-  leadsCnt: number;
   newLeadsCnt: number;
   requestCnt: number;
   policyCnt: number;
@@ -85,7 +83,7 @@ type SeriesPoint = {
 
 const TABLE_NAME = "consumer_data_daily";
 const DEFAULT_YEAR = 2026;
-const CONSUMER_DATA_CACHE_KEY = "consumer-data-dashboard-cache-v1";
+const CONSUMER_DATA_CACHE_KEY = "consumer-data-dashboard-cache-v2";
 const CONSUMER_DATA_STALE_MS = 12 * 60 * 60 * 1000;
 const QUADRANT_CARD_HEIGHT_CLASS = "h-[700px]";
 const QUADRANT_CARD_SHELL_CLASS =
@@ -118,7 +116,6 @@ const REVENUE_LEGEND_PAYLOAD = [
 
 const COUNTS_LEGEND_PAYLOAD = [
   { value: "Request count", type: "square", id: "requestCnt", color: COLORS.requests, dataKey: "requestCnt" },
-  { value: "Vehicle count", type: "square", id: "leadsCnt", color: COLORS.quotations, dataKey: "leadsCnt" },
   {
     value: "Leads count",
     type: "square",
@@ -252,7 +249,6 @@ function aggregateBy(rows: ConsumerRow[], granularity: Granularity): SeriesPoint
       ({
         label,
         sortKey,
-        leadsCnt: 0,
         newLeadsCnt: 0,
         requestCnt: 0,
         policyCnt: 0,
@@ -265,7 +261,6 @@ function aggregateBy(rows: ConsumerRow[], granularity: Granularity): SeriesPoint
         returningCustomerAmount: 0,
       } satisfies SeriesPoint);
 
-    current.leadsCnt += row.leadsCnt;
     current.newLeadsCnt += row.newLeadsCnt;
     current.requestCnt += row.requestCnt;
     current.policyCnt += row.policyCnt;
@@ -281,7 +276,7 @@ function aggregateBy(rows: ConsumerRow[], granularity: Granularity): SeriesPoint
   return [...buckets.values()]
     .map((point) => ({
       ...point,
-      conversionRatePct: point.leadsCnt > 0 ? (point.policyCnt / point.leadsCnt) * 100 : 0,
+      conversionRatePct: point.newLeadsCnt > 0 ? (point.policyCnt / point.newLeadsCnt) * 100 : 0,
       totalCustomerCnt: point.newPolicyCnt + point.returningPolicyCnt,
     }))
     .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
@@ -384,7 +379,7 @@ function ChartDataTable({
 }
 
 export default function ConsumerDataDashboardPage() {
-  const COUNT_SERIES_KEYS: CountSeriesKey[] = ["requestCnt", "leadsCnt", "newLeadsCnt", "policyCnt"];
+  const COUNT_SERIES_KEYS: CountSeriesKey[] = ["requestCnt", "newLeadsCnt", "policyCnt"];
   const LEADS_POLICY_SERIES_KEYS: CountSeriesKey[] = ["newLeadsCnt", "policyCnt"];
   const REVENUE_SERIES_KEYS: RevenueSeriesKey[] = [
     "newCustomerAmount",
@@ -416,7 +411,6 @@ export default function ConsumerDataDashboardPage() {
           day,
           year: Number.isFinite(Number(record.year)) ? Number(record.year) : parsedDay.getFullYear(),
           dayDate: parsedDay,
-          leadsCnt: Number(record.leadsCnt ?? 0),
           newLeadsCnt: Number(record.newLeadsCnt ?? 0),
           requestCnt: Number(record.requestCnt ?? 0),
           policyCnt: Number(record.policyCnt ?? 0),
@@ -457,7 +451,7 @@ export default function ConsumerDataDashboardPage() {
         const { data, error } = await (supabase as any)
           .from(TABLE_NAME)
           .select(
-            "date,leads_cnt,new_leads_cnt,request_cnt,policy_cnt,new_policy,returning_policy,total_amount,new_customer_amount,returning_customer_amount"
+            "date,leads_cnt,request_cnt,policy_cnt,new_policy,returning_policy,total_amount,new_customer_amount,returning_customer_amount"
           )
           .order("date", { ascending: true })
           .range(from, to);
@@ -478,8 +472,7 @@ export default function ConsumerDataDashboardPage() {
             day,
             year: parsedDay.getFullYear(),
             dayDate: parsedDay,
-            leadsCnt: Number(r.leads_cnt ?? 0),
-            newLeadsCnt: Number(r.new_leads_cnt ?? 0),
+            newLeadsCnt: Number(r.leads_cnt ?? 0),
             requestCnt: Number(r.request_cnt ?? 0),
             policyCnt: Number(r.policy_cnt ?? 0),
             newPolicyCnt: Number(r.new_policy ?? 0),
@@ -734,7 +727,6 @@ export default function ConsumerDataDashboardPage() {
   const showMainLeadsSeries = effectiveActiveCountSeries.includes("newLeadsCnt");
   const showMainPolicySeries = effectiveActiveCountSeries.includes("policyCnt");
   const showDetailedRequestSeries = effectiveActiveDetailedCountSeries.includes("requestCnt");
-  const showDetailedLeadsSeries = effectiveActiveDetailedCountSeries.includes("leadsCnt");
   const showDetailedNewLeadsSeries = effectiveActiveDetailedCountSeries.includes("newLeadsCnt");
   const showDetailedPolicySeries = effectiveActiveDetailedCountSeries.includes("policyCnt");
   const showRevenueNewSeries = effectiveActiveRevenueSeries.includes("newCustomerAmount");
@@ -753,7 +745,6 @@ export default function ConsumerDataDashboardPage() {
   const mainLeadsBarOpacity = showMainLeadsSeries ? 1 : hasPartialCountSelection ? 0.08 : 0.28;
   const mainPolicyBarOpacity = showMainPolicySeries ? 1 : hasPartialCountSelection ? 0.08 : 0.28;
   const detailedRequestBarOpacity = showDetailedRequestSeries ? 1 : hasPartialDetailedCountSelection ? 0.08 : 0.28;
-  const detailedLeadsBarOpacity = showDetailedLeadsSeries ? 1 : hasPartialDetailedCountSelection ? 0.08 : 0.28;
   const detailedNewLeadsBarOpacity =
     showDetailedNewLeadsSeries ? 1 : hasPartialDetailedCountSelection ? 0.08 : 0.28;
   const detailedPolicyBarOpacity = showDetailedPolicySeries ? 1 : hasPartialDetailedCountSelection ? 0.08 : 0.28;
@@ -803,11 +794,10 @@ export default function ConsumerDataDashboardPage() {
       chartData.map((row) => ({
         ...row,
         requestCnt: showDetailedRequestSeries ? row.requestCnt : 0,
-        leadsCnt: showDetailedLeadsSeries ? row.leadsCnt : 0,
         newLeadsCnt: showDetailedNewLeadsSeries ? row.newLeadsCnt : 0,
         policyCnt: showDetailedPolicySeries ? row.policyCnt : 0,
       })),
-    [chartData, showDetailedRequestSeries, showDetailedLeadsSeries, showDetailedNewLeadsSeries, showDetailedPolicySeries]
+    [chartData, showDetailedRequestSeries, showDetailedNewLeadsSeries, showDetailedPolicySeries]
   );
   const resetCountsSeries = () => setActiveCountSeries(LEADS_POLICY_SERIES_KEYS);
   const resetDetailedCountsSeries = () => setActiveDetailedCountSeries(COUNT_SERIES_KEYS);
@@ -818,7 +808,7 @@ export default function ConsumerDataDashboardPage() {
     return filteredRows.reduce(
       (acc, row) => {
         acc.requestCnt += row.requestCnt;
-        acc.leadsCnt += row.leadsCnt;
+        acc.newLeadsCnt += row.newLeadsCnt;
         acc.policyCnt += row.policyCnt;
         acc.newPolicyCnt += row.newPolicyCnt;
         acc.returningPolicyCnt += row.returningPolicyCnt;
@@ -827,7 +817,7 @@ export default function ConsumerDataDashboardPage() {
       },
       {
         requestCnt: 0,
-        leadsCnt: 0,
+        newLeadsCnt: 0,
         policyCnt: 0,
         conversionRatePct: 0,
         newPolicyCnt: 0,
@@ -840,7 +830,7 @@ export default function ConsumerDataDashboardPage() {
   const summaryWithConversion = useMemo(
     () => ({
       ...summary,
-      conversionRatePct: summary.leadsCnt > 0 ? (summary.policyCnt / summary.leadsCnt) * 100 : 0,
+      conversionRatePct: summary.newLeadsCnt > 0 ? (summary.policyCnt / summary.newLeadsCnt) * 100 : 0,
       newCustomerSharePct: summary.policyCnt > 0 ? (summary.newPolicyCnt / summary.policyCnt) * 100 : 0,
       returningCustomerSharePct:
         summary.policyCnt > 0 ? (summary.returningPolicyCnt / summary.policyCnt) * 100 : 0,
@@ -1294,10 +1284,10 @@ export default function ConsumerDataDashboardPage() {
             <CardContent className="flex-1 overflow-auto">
               <div className="space-y-2">
                 <SummaryRow title="Request count" value={formatInt(summaryWithConversion.requestCnt)} />
-                <SummaryRow title="Leads count" value={formatInt(summaryWithConversion.leadsCnt)} />
+                <SummaryRow title="Leads count" value={formatInt(summaryWithConversion.newLeadsCnt)} />
                 <SummaryRow title="Policies" value={formatInt(summaryWithConversion.policyCnt)} />
                 <SummaryRow
-                  title="Conversion rate (Unique Leads/Policy)"
+                  title="Conversion rate (Policies / Leads count)"
                   value={`${summaryWithConversion.conversionRatePct.toFixed(2)}%`}
                 />
                 <SummaryRow title="New customers" value={formatInt(summaryWithConversion.newPolicyCnt)} />
@@ -1457,10 +1447,7 @@ export default function ConsumerDataDashboardPage() {
                   {(COUNTS_LEGEND_PAYLOAD as readonly any[]).map((entry) => {
                     const key = String(entry?.dataKey ?? "") as CountLegendSeriesKey;
                     const isClickable =
-                      key === "requestCnt" ||
-                      key === "leadsCnt" ||
-                      key === "newLeadsCnt" ||
-                      key === "policyCnt";
+                      key === "requestCnt" || key === "newLeadsCnt" || key === "policyCnt";
                     const isActive =
                       key === "conversionRatePct" || effectiveActiveDetailedCountSeries.includes(key);
                     const isLine = String(entry?.type ?? "") === "line";
@@ -1543,20 +1530,6 @@ export default function ConsumerDataDashboardPage() {
                       />
                       <Bar
                         yAxisId="left"
-                        dataKey="leadsCnt"
-                        name="Vehicle count"
-                        fill={COLORS.quotations}
-                        barSize={detailedCountsFixedBarSize}
-                        fillOpacity={detailedLeadsBarOpacity}
-                        opacity={detailedLeadsBarOpacity}
-                        stroke={showDetailedLeadsSeries ? COLORS.quotations : "transparent"}
-                        strokeWidth={showDetailedLeadsSeries ? 1.25 : 0}
-                        minPointSize={useLineForDailyCounts ? 3 : 0}
-                        maxBarSize={detailedCountsMaxBarSize}
-                        onClick={() => handleDetailedCountLegendClick("leadsCnt")}
-                      />
-                      <Bar
-                        yAxisId="left"
                         dataKey="newLeadsCnt"
                         name="Leads count"
                         fill={COLORS.uniqueLeads}
@@ -1606,7 +1579,6 @@ export default function ConsumerDataDashboardPage() {
                 onExpandTable={() => setExpandedTablePanel("counts")}
                 columns={[
                   { key: "requestCnt", label: "Request count", kind: "int" },
-                  { key: "leadsCnt", label: "Vehicle count", kind: "int" },
                   { key: "newLeadsCnt", label: "Leads count", kind: "int" },
                   { key: "policyCnt", label: "Policy count", kind: "int" },
                   { key: "conversionRatePct", label: "Conversion rate", kind: "pct" },
@@ -1943,7 +1915,8 @@ export default function ConsumerDataDashboardPage() {
                 title="Counts"
                 maxHeightClassName="max-h-[72vh]"
                 columns={[
-                  { key: "leadsCnt", label: "Vehicle count", kind: "int" },
+                  { key: "requestCnt", label: "Request count", kind: "int" },
+                  { key: "newLeadsCnt", label: "Leads count", kind: "int" },
                   { key: "policyCnt", label: "Policy count", kind: "int" },
                   { key: "conversionRatePct", label: "Conversion rate", kind: "pct" },
                 ]}
