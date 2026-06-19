@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, getISOWeek, getISOWeekYear, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import {
   Bar,
@@ -82,9 +82,46 @@ type SeriesPoint = {
 };
 
 const TABLE_NAME = "consumer_data_daily";
+const CONSUMER_DATA_QUERY_KEY = ["consumer-data-dashboard", TABLE_NAME] as const;
 const DEFAULT_YEAR = 2026;
 const CONSUMER_DATA_CACHE_KEY = "consumer-data-dashboard-cache-v2";
-const CONSUMER_DATA_STALE_MS = 12 * 60 * 60 * 1000;
+/** DB refresh is scheduled daily at this local time (browser timezone). */
+const DATA_REFRESH_HOUR = 10;
+const DATA_REFRESH_MINUTE = 30;
+/** Wait a few minutes after 10:30 so the upstream load can finish before we refetch. */
+const DATA_REFRESH_GRACE_MINUTES = 5;
+
+function getLastScheduledDataRefreshMs(now = new Date()): number {
+  const refresh = new Date(now);
+  refresh.setHours(DATA_REFRESH_HOUR, DATA_REFRESH_MINUTE, 0, 0);
+  if (now.getTime() < refresh.getTime()) {
+    refresh.setDate(refresh.getDate() - 1);
+  }
+  return refresh.getTime();
+}
+
+function getMsUntilNextDataRefreshStale(now = new Date()): number {
+  const staleAfter = new Date(now);
+  staleAfter.setHours(
+    DATA_REFRESH_HOUR,
+    DATA_REFRESH_MINUTE + DATA_REFRESH_GRACE_MINUTES,
+    0,
+    0
+  );
+  if (now.getTime() >= staleAfter.getTime()) {
+    staleAfter.setDate(staleAfter.getDate() + 1);
+  }
+  return Math.max(60_000, staleAfter.getTime() - now.getTime());
+}
+
+function isConsumerDataCacheFresh(updatedAt: number, now = new Date()): boolean {
+  return updatedAt >= getLastScheduledDataRefreshMs(now);
+}
+
+function shouldRefetchConsumerData(queryUpdatedAt: number | undefined): boolean {
+  if (typeof queryUpdatedAt !== "number") return true;
+  return !isConsumerDataCacheFresh(queryUpdatedAt);
+}
 const QUADRANT_CARD_HEIGHT_CLASS = "h-[700px]";
 const QUADRANT_CARD_SHELL_CLASS =
   "rounded-2xl border-2 border-border/80 bg-card shadow-sm overflow-hidden";
@@ -379,6 +416,7 @@ function ChartDataTable({
 }
 
 export default function ConsumerDataDashboardPage() {
+  const queryClient = useQueryClient();
   const COUNT_SERIES_KEYS: CountSeriesKey[] = ["requestCnt", "newLeadsCnt", "policyCnt"];
   const LEADS_POLICY_SERIES_KEYS: CountSeriesKey[] = ["newLeadsCnt", "policyCnt"];
   const REVENUE_SERIES_KEYS: RevenueSeriesKey[] = [
@@ -431,6 +469,7 @@ export default function ConsumerDataDashboardPage() {
       if (typeof parsed.updatedAt !== "number") return null;
       const rows = normalizeConsumerRows(parsed.rows);
       if (rows.length === 0) return null;
+      if (!isConsumerDataCacheFresh(parsed.updatedAt)) return null;
       return { rows, updatedAt: parsed.updatedAt };
     } catch {
       return null;
@@ -438,8 +477,10 @@ export default function ConsumerDataDashboardPage() {
   };
   const initialCache = readConsumerDataCache();
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["consumer-data-dashboard", TABLE_NAME],
-    staleTime: CONSUMER_DATA_STALE_MS,
+    queryKey: CONSUMER_DATA_QUERY_KEY,
+    staleTime: getMsUntilNextDataRefreshStale(),
+    refetchOnMount: (query) => shouldRefetchConsumerData(query.state.dataUpdatedAt),
+    refetchOnWindowFocus: (query) => shouldRefetchConsumerData(query.state.dataUpdatedAt),
     initialData: initialCache?.rows,
     initialDataUpdatedAt: initialCache?.updatedAt,
     queryFn: async () => {
@@ -498,6 +539,26 @@ export default function ConsumerDataDashboardPage() {
       return rows;
     },
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    let timeoutId: number | undefined;
+
+    const scheduleInvalidate = () => {
+      if (cancelled) return;
+      timeoutId = window.setTimeout(() => {
+        if (cancelled) return;
+        void queryClient.invalidateQueries({ queryKey: CONSUMER_DATA_QUERY_KEY });
+        scheduleInvalidate();
+      }, getMsUntilNextDataRefreshStale());
+    };
+
+    scheduleInvalidate();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [queryClient]);
 
   const rows = data ?? [];
   const yearOptions = useMemo(() => yearOptionsForSelect(rows), [rows]);
