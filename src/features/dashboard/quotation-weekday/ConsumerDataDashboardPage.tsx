@@ -84,43 +84,36 @@ type SeriesPoint = {
 const TABLE_NAME = "consumer_data_daily";
 const CONSUMER_DATA_QUERY_KEY = ["consumer-data-dashboard", TABLE_NAME] as const;
 const DEFAULT_YEAR = 2026;
-const CONSUMER_DATA_CACHE_KEY = "consumer-data-dashboard-cache-v2";
-/** DB refresh is scheduled daily at this local time (browser timezone). */
-const DATA_REFRESH_HOUR = 10;
-const DATA_REFRESH_MINUTE = 30;
-/** Wait a few minutes after 10:30 so the upstream load can finish before we refetch. */
-const DATA_REFRESH_GRACE_MINUTES = 5;
+const CONSUMER_DATA_CACHE_KEY = "consumer-data-dashboard-cache-v3";
+const FINGERPRINT_QUERY_KEY = ["consumer-data-dashboard-fingerprint", TABLE_NAME] as const;
+/** How often we're willing to ask Supabase "has anything changed?" via the cheap fingerprint query. */
+const FINGERPRINT_POLL_MS = 60_000;
 
-function getLastScheduledDataRefreshMs(now = new Date()): number {
-  const refresh = new Date(now);
-  refresh.setHours(DATA_REFRESH_HOUR, DATA_REFRESH_MINUTE, 0, 0);
-  if (now.getTime() < refresh.getTime()) {
-    refresh.setDate(refresh.getDate() - 1);
-  }
-  return refresh.getTime();
+type ConsumerDataFingerprint = { count: number; maxUpdatedAt: string | null };
+
+/**
+ * Cheap freshness signal: row count + latest updated_at, no row payload.
+ * Lets us detect new/edited rows without re-downloading the full dataset on every check.
+ */
+async function fetchConsumerDataFingerprint(): Promise<ConsumerDataFingerprint> {
+  const [{ count }, { data: latest, error: latestError }] = await Promise.all([
+    (supabase as any).from(TABLE_NAME).select("date", { count: "exact", head: true }),
+    (supabase as any)
+      .from(TABLE_NAME)
+      .select("updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(1),
+  ]);
+  if (latestError) throw latestError;
+  return { count: count ?? 0, maxUpdatedAt: latest?.[0]?.updated_at ?? null };
 }
 
-function getMsUntilNextDataRefreshStale(now = new Date()): number {
-  const staleAfter = new Date(now);
-  staleAfter.setHours(
-    DATA_REFRESH_HOUR,
-    DATA_REFRESH_MINUTE + DATA_REFRESH_GRACE_MINUTES,
-    0,
-    0
-  );
-  if (now.getTime() >= staleAfter.getTime()) {
-    staleAfter.setDate(staleAfter.getDate() + 1);
-  }
-  return Math.max(60_000, staleAfter.getTime() - now.getTime());
-}
-
-function isConsumerDataCacheFresh(updatedAt: number, now = new Date()): boolean {
-  return updatedAt >= getLastScheduledDataRefreshMs(now);
-}
-
-function shouldRefetchConsumerData(queryUpdatedAt: number | undefined): boolean {
-  if (typeof queryUpdatedAt !== "number") return true;
-  return !isConsumerDataCacheFresh(queryUpdatedAt);
+function fingerprintsMatch(
+  a: ConsumerDataFingerprint | null | undefined,
+  b: ConsumerDataFingerprint | null | undefined
+): boolean {
+  if (!a || !b) return false;
+  return a.count === b.count && a.maxUpdatedAt === b.maxUpdatedAt;
 }
 const QUADRANT_CARD_HEIGHT_CLASS = "h-[700px]";
 const QUADRANT_CARD_SHELL_CLASS =
@@ -461,28 +454,33 @@ export default function ConsumerDataDashboardPage() {
       })
       .filter((row): row is ConsumerRow => row !== null);
   };
-  const readConsumerDataCache = (): { rows: ConsumerRow[]; updatedAt: number } | null => {
+  const readConsumerDataCache = (): {
+    rows: ConsumerRow[];
+    fingerprint: ConsumerDataFingerprint;
+  } | null => {
     try {
       const raw = localStorage.getItem(CONSUMER_DATA_CACHE_KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as { rows?: ConsumerRow[]; updatedAt?: number };
-      if (typeof parsed.updatedAt !== "number") return null;
+      const parsed = JSON.parse(raw) as {
+        rows?: ConsumerRow[];
+        fingerprint?: ConsumerDataFingerprint;
+      };
+      if (!parsed.fingerprint || typeof parsed.fingerprint.count !== "number") return null;
       const rows = normalizeConsumerRows(parsed.rows);
       if (rows.length === 0) return null;
-      if (!isConsumerDataCacheFresh(parsed.updatedAt)) return null;
-      return { rows, updatedAt: parsed.updatedAt };
+      return { rows, fingerprint: parsed.fingerprint };
     } catch {
       return null;
     }
   };
   const initialCache = readConsumerDataCache();
+  const lastFingerprintRef = useRef<ConsumerDataFingerprint | null>(initialCache?.fingerprint ?? null);
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: CONSUMER_DATA_QUERY_KEY,
-    staleTime: getMsUntilNextDataRefreshStale(),
-    refetchOnMount: (query) => shouldRefetchConsumerData(query.state.dataUpdatedAt),
-    refetchOnWindowFocus: (query) => shouldRefetchConsumerData(query.state.dataUpdatedAt),
+    // Freshness is driven entirely by the fingerprint check below, not by time.
+    staleTime: Infinity,
     initialData: initialCache?.rows,
-    initialDataUpdatedAt: initialCache?.updatedAt,
     queryFn: async () => {
       const pageSize = 1000;
       const allRows: any[] = [];
@@ -525,14 +523,11 @@ export default function ConsumerDataDashboardPage() {
           return row;
         })
         .filter(Boolean) as ConsumerRow[];
+
+      const fingerprint = await fetchConsumerDataFingerprint();
+      lastFingerprintRef.current = fingerprint;
       try {
-        localStorage.setItem(
-          CONSUMER_DATA_CACHE_KEY,
-          JSON.stringify({
-            updatedAt: Date.now(),
-            rows,
-          })
-        );
+        localStorage.setItem(CONSUMER_DATA_CACHE_KEY, JSON.stringify({ fingerprint, rows }));
       } catch {
         // Ignore localStorage quota/access issues.
       }
@@ -540,25 +535,22 @@ export default function ConsumerDataDashboardPage() {
     },
   });
 
+  // Cheap poll: only asks for row count + latest updated_at, not the full dataset.
+  // When it disagrees with the fingerprint the loaded data was cached under, trigger a real refetch.
+  const { data: liveFingerprint } = useQuery({
+    queryKey: FINGERPRINT_QUERY_KEY,
+    queryFn: fetchConsumerDataFingerprint,
+    staleTime: FINGERPRINT_POLL_MS,
+    refetchInterval: FINGERPRINT_POLL_MS,
+    refetchOnWindowFocus: true,
+  });
+
   useEffect(() => {
-    let cancelled = false;
-    let timeoutId: number | undefined;
-
-    const scheduleInvalidate = () => {
-      if (cancelled) return;
-      timeoutId = window.setTimeout(() => {
-        if (cancelled) return;
-        void queryClient.invalidateQueries({ queryKey: CONSUMER_DATA_QUERY_KEY });
-        scheduleInvalidate();
-      }, getMsUntilNextDataRefreshStale());
-    };
-
-    scheduleInvalidate();
-    return () => {
-      cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-    };
-  }, [queryClient]);
+    if (!liveFingerprint) return;
+    if (fingerprintsMatch(lastFingerprintRef.current, liveFingerprint)) return;
+    lastFingerprintRef.current = liveFingerprint;
+    void queryClient.invalidateQueries({ queryKey: CONSUMER_DATA_QUERY_KEY });
+  }, [liveFingerprint, queryClient]);
 
   const rows = data ?? [];
   const yearOptions = useMemo(() => yearOptionsForSelect(rows), [rows]);
