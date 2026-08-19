@@ -1,0 +1,16 @@
+export const COLORS = {
+  quotations: "hsl(221.2 83.2% 53.3%)",
+  requests: "hsl(142.1 70.6% 45.3%)",
+  uniqueLeads: "hsl(258 90% 66%)",
+  policies: "hsl(37.7 92.1% 50.2%)",
+  newPolicy: "hsl(262.1 83.3% 57.8%)",
+  returningPolicy: "hsl(191 85% 42%)",
+  revenueTotal: "hsl(24.6 95% 53.1%)",
+  revenueNew: "hsl(158.1 64.4% 51.6%)",
+  revenueReturning: "hsl(336.2 79.2% 57.8%)",
+  insurersConverted: "hsl(199 89% 48%)",
+  insurersNotConverted: "hsl(291 64% 58%)",
+  utmRequests: "hsl(210 90% 55%)",
+  utmVehicleNo: "hsl(35 92% 55%)",
+  utmSales: "hsl(150 65% 45%)",
+} as const;
