@@ -177,7 +177,7 @@ export default function ConsumerDataDashboardPage() {
 
   const effectiveGranularity = useMemo<Granularity>(() => {
     if (periodMode === "full_year") return granularity;
-    // In MTD and custom range mode we support day/week switching only.
+    // In MTD, previous month and custom range mode we support day/week switching only.
     if (granularity === "day" || granularity === "week") return granularity;
     return "week";
   }, [periodMode, granularity]);
@@ -327,6 +327,7 @@ export default function ConsumerDataDashboardPage() {
                 <SelectContent>
                   <SelectItem value="full_year">Calendar year (Day / Week / Month / Year)</SelectItem>
                   <SelectItem value="this_month">This month (MTD)</SelectItem>
+                  <SelectItem value="previous_month">Previous month</SelectItem>
                   <SelectItem value="custom_range">Custom range</SelectItem>
                 </SelectContent>
               </Select>

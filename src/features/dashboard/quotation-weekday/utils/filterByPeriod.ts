@@ -1,4 +1,4 @@
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import type { Granularity, PeriodMode } from "../types";
 
@@ -19,6 +19,12 @@ export function filterRowsByPeriod<T extends { day: string; year: number }>(
     const now = new Date();
     const start = format(startOfMonth(now), "yyyy-MM-dd");
     const end = format(endOfMonth(now), "yyyy-MM-dd");
+    return rows.filter((r) => r.day >= start && r.day <= end);
+  }
+  if (periodMode === "previous_month") {
+    const prev = subMonths(new Date(), 1);
+    const start = format(startOfMonth(prev), "yyyy-MM-dd");
+    const end = format(endOfMonth(prev), "yyyy-MM-dd");
     return rows.filter((r) => r.day >= start && r.day <= end);
   }
   if (periodMode === "custom_range") {

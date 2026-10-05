@@ -13,7 +13,7 @@ export type ConsumerRow = {
 };
 
 export type Granularity = "day" | "week" | "month" | "year";
-export type PeriodMode = "full_year" | "this_month" | "custom_range";
+export type PeriodMode = "full_year" | "this_month" | "previous_month" | "custom_range";
 export type CountSeriesKey = "requestCnt" | "newLeadsCnt" | "policyCnt";
 export type CountLegendSeriesKey = CountSeriesKey | "conversionRatePct";
 export type RevenueSeriesKey = "newCustomerAmount" | "returningCustomerAmount" | "totalAmount";
