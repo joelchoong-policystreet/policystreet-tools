@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Dashboard Data Load with localStorage Cache",
+    "output": ".archify/sequence-dashboard-data-cache-20261012-201341/dashboard-data-cache.html",
+    "locale": "en",
+    "column_fit": "spread",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/joelchoong-policystreet/policystreet-tools.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "503ff98d95091bd9b7247a46caa797794be3f12a"
+    }
+  },
+  "participants": [
+    {
+      "id": "page",
+      "type": "frontend",
+      "label": "Dashboard Page",
+      "sublabel": "ConsumerDataDashboardPage",
+      "sources": [
+        {
+          "path": "src/features/dashboard/quotation-weekday/ConsumerDataDashboardPage.tsx",
+          "line": 82,
+          "label": "calls useConsumerData"
+        },
+        {
+          "path": "src/features/dashboard/quotation-weekday/hooks/useConsumerData.ts",
+          "line": 48,
+          "end_line": 59,
+          "label": "configures shared hook"
+        }
+      ]
+    },
+    {
+      "id": "hook",
+      "type": "frontend",
+      "label": "useDailyTableData",
+      "sublabel": "React Query hook",
+      "sources": [
+        {
+          "path": "src/features/dashboard/quotation-weekday/hooks/useDailyTableData.ts",
+          "line": 70,
+          "end_line": 138,
+          "label": "fetch, cache, revalidate"
+        }
+      ]
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "localStorage",
+      "sublabel": "browser cache",
+      "sources": [
+        {
+          "path": "src/features/dashboard/quotation-weekday/hooks/useDailyTableData.ts",
+          "line": 47,
+          "end_line": 63,
+          "label": "readCache"
+        },
+        {
+          "path": "src/features/dashboard/quotation-weekday/hooks/useDailyTableData.ts",
+          "line": 111,
+          "end_line": 115,
+          "label": "setItem after fetch"
+        }
+      ]
+    },
+    {
+      "id": "supabase",
+      "type": "database",
+      "label": "Supabase",
+      "sublabel": "Postgres: consumer_data_daily",
+      "sources": [
+        {
+          "path": "src/data/supabase/client.ts",
+          "line": 7,
+          "end_line": 13,
+          "label": "createClient"
+        },
+        {
+          "path": "supabase/migrations/20260426102000_consumer_data_dashboard.sql",
+          "line": 5,
+          "label": "table definition"
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 275,
+      "label": "Read cache"
+    },
+    {
+      "from": 285,
+      "to": 475,
+      "label": "Cache miss: full fetch"
+    },
+    {
+      "from": 485,
+      "to": 577,
+      "label": "Freshness poll (60s)"
+    }
+  ],
+  "messages": [
+    {
+      "id": "use-hook",
+      "from": "page",
+      "to": "hook",
+      "y": 165,
+      "label": "useConsumerData()",
+      "variant": "emphasis"
+    },
+    {
+      "id": "cache-read",
+      "from": "hook",
+      "to": "storage",
+      "y": 197,
+      "label": "getItem(cacheKey)",
+      "variant": "default"
+    },
+    {
+      "id": "cache-result",
+      "from": "storage",
+      "to": "hook",
+      "y": 229,
+      "label": "rows + fingerprint, or null",
+      "variant": "return"
+    },
+    {
+      "id": "cache-render",
+      "from": "hook",
+      "to": "page",
+      "y": 261,
+      "label": "cached rows (hit)",
+      "variant": "return",
+      "note": "Used as initialData; staleTime Infinity skips the fetch"
+    },
+    {
+      "id": "page-select",
+      "from": "hook",
+      "to": "supabase",
+      "y": 300,
+      "label": "SELECT, pages of 1000",
+      "variant": "emphasis"
+    },
+    {
+      "id": "page-rows",
+      "from": "supabase",
+      "to": "hook",
+      "y": 332,
+      "label": "all rows",
+      "variant": "return"
+    },
+    {
+      "id": "fp-fetch",
+      "from": "hook",
+      "to": "supabase",
+      "y": 364,
+      "label": "count + max(updated_at)",
+      "variant": "default"
+    },
+    {
+      "id": "fp-result",
+      "from": "supabase",
+      "to": "hook",
+      "y": 396,
+      "label": "fingerprint",
+      "variant": "return"
+    },
+    {
+      "id": "cache-write",
+      "from": "hook",
+      "to": "storage",
+      "y": 428,
+      "label": "setItem {fingerprint, rows}",
+      "variant": "dashed"
+    },
+    {
+      "id": "fresh-render",
+      "from": "hook",
+      "to": "page",
+      "y": 460,
+      "label": "rows",
+      "variant": "return"
+    },
+    {
+      "id": "poll",
+      "from": "hook",
+      "to": "supabase",
+      "y": 498,
+      "label": "fingerprint check",
+      "variant": "dashed",
+      "note": "Every 60s and on window focus"
+    },
+    {
+      "id": "poll-result",
+      "from": "supabase",
+      "to": "hook",
+      "y": 530,
+      "label": "count + updated_at",
+      "variant": "return"
+    },
+    {
+      "id": "refetch",
+      "from": "hook",
+      "to": "supabase",
+      "y": 562,
+      "label": "if changed: invalidate + refetch",
+      "variant": "emphasis"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "page",
+      "from": 160,
+      "to": 466,
+      "type": "frontend"
+    },
+    {
+      "participant": "hook",
+      "from": 165,
+      "to": 568,
+      "type": "frontend"
+    },
+    {
+      "participant": "storage",
+      "from": 192,
+      "to": 235,
+      "type": "database"
+    },
+    {
+      "participant": "supabase",
+      "from": 295,
+      "to": 370,
+      "type": "database"
+    },
+    {
+      "participant": "storage",
+      "from": 423,
+      "to": 434,
+      "type": "database"
+    },
+    {
+      "participant": "supabase",
+      "from": 493,
+      "to": 536,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Cache Hit",
+      "items": [
+        "Rows from localStorage render instantly as React Query initialData",
+        "No full fetch runs because staleTime is Infinity"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Cache Miss",
+      "items": [
+        "The whole table is downloaded in pages of 1000, ordered by date",
+        "Rows and fingerprint are saved together; quota errors are ignored"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Freshness",
+      "items": [
+        "No time-based expiry: only the fingerprint decides staleness",
+        "A changed row count or updated_at triggers a full refetch"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Shared Hook",
+      "items": [
+        "Consumer, Quotation Conversion and UTM Vehicle dashboards use the same flow with their own table and cache key"
+      ]
+    }
+  ]
+}

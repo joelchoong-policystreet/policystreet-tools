@@ -14,6 +14,7 @@ import {
   LogOut,
   Shield,
   BarChart3,
+  MessageSquareWarning,
 } from "lucide-react";
 import { FinishLineIcon } from "@/components/icons/FinishLineIcon";
 import { cn } from "@/lib/utils";
@@ -135,6 +136,13 @@ export function Sidebar() {
             icon={BarChart3}
             label="Consumer Sales"
             isActive={isActive("/dashboard/consumer-data")}
+            indent
+          />
+          <NavItem
+            to="/dashboard/exit-intent"
+            icon={MessageSquareWarning}
+            label="Exit Intent"
+            isActive={isActive("/dashboard/exit-intent")}
             indent
           />
         </Section>

@@ -28,6 +28,9 @@ const NotFoundPage = React.lazy(() => import("@/features/not-found/presentation/
 const ConsumerDataDashboardPage = React.lazy(
   () => import("@/features/dashboard/quotation-weekday/ConsumerDataDashboardPage")
 );
+const ExitIntentDashboardPage = React.lazy(
+  () => import("@/features/dashboard/exit-intent/ExitIntentDashboardPage")
+);
 
 const SIDEBAR_WIDTH = 110;
 const PROJECT_PANEL_WIDTH = 220;
@@ -63,6 +66,7 @@ function AppLayout() {
               <Route path="/" element={<HomePage />} />
               <Route path="/report" element={<ReportPage />} />
               <Route path="/dashboard/consumer-data" element={<ConsumerDataDashboardPage />} />
+              <Route path="/dashboard/exit-intent" element={<ExitIntentDashboardPage />} />
               <Route path="/milestones" element={<Navigate to={`/milestones/${DEFAULT_MILESTONE_BOARD_ID}`} replace />} />
               <Route path="/milestones/:boardId" element={<MilestonesPage />} />
               <Route path="/database" element={<DatabasePage />} />

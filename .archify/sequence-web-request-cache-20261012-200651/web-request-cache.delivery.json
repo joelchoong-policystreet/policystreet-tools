@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "4ce5027e-db05-4f61-b0e5-5a4c11f54b0f",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/joel/Documents/PolicyStreet/policystreet-tools/.archify/sequence-web-request-cache-20261012-200651/candidate.json",
+  "output": "/Users/joel/Documents/PolicyStreet/policystreet-tools/.archify/sequence-web-request-cache-20261012-200651/web-request-cache.html",
+  "specification": {
+    "sha256": "c74307282965161692dbcbf3da35a1fde967c5b20b0a5410ef60e64198c190c5",
+    "bytes": 2724
+  },
+  "artifact": {
+    "sha256": "6b87669d57b7257c6fdf21f36a537386d261ba106cc2403bfd0bcd927334c20e",
+    "bytes": 753451
+  }
+}
