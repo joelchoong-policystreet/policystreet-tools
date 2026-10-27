@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
+import policyStreetLogo from "@/assets/policystreet-logo.svg";
 
 export default function LoginPage() {
   const { signIn } = useAuth();
@@ -33,9 +34,9 @@ export default function LoginPage() {
       {/* Left: Login form */}
       <div className="flex-1 flex items-center justify-center bg-background px-8">
         <div className="w-full max-w-sm space-y-8">
-          <div>
-            <span className="text-2xl font-bold text-primary">PolicyStreet</span>
-            <span className="ml-2 rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+          <div className="flex items-center">
+            <img src={policyStreetLogo} alt="PolicyStreet" className="h-12 w-auto" />
+            <span className="ml-3 rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
               Tools
             </span>
           </div>

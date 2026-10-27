@@ -17,6 +17,7 @@ import {
   MessageSquareWarning,
 } from "lucide-react";
 import { FinishLineIcon } from "@/components/icons/FinishLineIcon";
+import policyStreetLogo from "@/assets/policystreet-logo.svg";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -107,11 +108,9 @@ export function Sidebar() {
     <div className="fixed left-0 top-0 h-screen w-[110px] border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col items-center z-50">
       <Link
         to="/"
-        className="border-b border-sidebar-border w-full p-4 flex flex-col items-center gap-1 hover:bg-sidebar-accent/10 transition-colors"
+        className="border-b border-sidebar-border w-full px-2 py-3 flex flex-col items-center gap-1.5 hover:bg-sidebar-accent/10 transition-colors"
       >
-        <span className="text-sm font-bold italic text-sidebar-foreground leading-tight text-center">
-          PolicyStreet
-        </span>
+        <img src={policyStreetLogo} alt="PolicyStreet" className="w-full h-auto brightness-0 invert" />
         <span className="rounded-md bg-gradient-to-r from-blue-400 to-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">
           Tools
         </span>
